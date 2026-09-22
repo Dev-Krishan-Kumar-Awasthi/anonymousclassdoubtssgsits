@@ -79,6 +79,24 @@ export default function ClassDetailPage() {
     loadDoubts();
   }, [loadDoubts]);
 
+  // 3-second automatic background polling fallback so doubts appear without manual refresh
+  useEffect(() => {
+    if (!classId) return;
+    const pollInterval = setInterval(async () => {
+      try {
+        const fresh = await fetchDoubtsForClass(classId);
+        setDoubts((prev) => {
+          if (fresh.length !== prev.length || (fresh[0] && fresh[0].id !== prev[0]?.id)) {
+            return fresh;
+          }
+          return prev;
+        });
+      } catch {}
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, [classId]);
+
   // Setup Supabase Realtime Subscription with duplicate protection
   useEffect(() => {
     if (!classId) return;
@@ -117,41 +135,85 @@ export default function ClassDetailPage() {
     };
   }, [classId]);
 
-  // Handler for adding doubt (guarded by activeStatus)
+  // Handler for adding doubt (with 0ms optimistic UI update)
   const handleAddDoubt = async (doubtText: string) => {
-    if (!activeStatus.isActive) {
-      throw new Error(
-        `Class is not active! You cannot ask doubts when the lecture is offline (${currentClass?.day} • ${currentClass?.time}).`
-      );
-    }
+    const tempId = `temp-${Date.now()}`;
+    const optimisticDoubt: Doubt = {
+      id: tempId,
+      classId,
+      author: 'Anonymous Student',
+      content: doubtText,
+      createdAt: 'Just now',
+      replies: [],
+    };
 
-    const savedDoubt = await createDoubt(classId, doubtText);
-    setDoubts((prev) => {
-      if (prev.some((d) => d.id === savedDoubt.id)) {
-        return prev;
-      }
-      return [savedDoubt, ...prev];
-    });
+    // 0ms instant display on screen (haal ki haal)!
+    setDoubts((prev) => [optimisticDoubt, ...prev]);
+
+    try {
+      const savedDoubt = await createDoubt(classId, doubtText);
+      setDoubts((prev) =>
+        prev.map((d) => (d.id === tempId ? savedDoubt : d))
+      );
+    } catch (err: any) {
+      setDoubts((prev) => prev.filter((d) => d.id !== tempId));
+      throw err;
+    }
   };
 
-  // Handler for adding reply
+  // Handler for adding reply (with 0ms optimistic update)
   const handleAddReply = async (doubtId: string, replyText: string, author?: string) => {
-    const savedReply = await createReply(doubtId, classId, replyText, author);
+    const tempReplyId = `temp-rep-${Date.now()}`;
+    const optimisticReply: Reply = {
+      id: tempReplyId,
+      doubtId,
+      author: author || 'Anonymous Student',
+      content: replyText,
+      createdAt: 'Just now',
+    };
+
+    // 0ms instant display on screen!
     setDoubts((prev) =>
       prev.map((doubt) => {
         if (doubt.id === doubtId) {
           const existingReplies = doubt.replies || [];
-          if (existingReplies.some((r) => r.id === savedReply.id)) {
-            return doubt;
-          }
           return {
             ...doubt,
-            replies: [...existingReplies, savedReply],
+            replies: [...existingReplies, optimisticReply],
           };
         }
         return doubt;
       })
     );
+
+    try {
+      const savedReply = await createReply(doubtId, classId, replyText, author);
+      setDoubts((prev) =>
+        prev.map((doubt) => {
+          if (doubt.id === doubtId) {
+            const existingReplies = doubt.replies || [];
+            return {
+              ...doubt,
+              replies: existingReplies.map((r) => (r.id === tempReplyId ? savedReply : r)),
+            };
+          }
+          return doubt;
+        })
+      );
+    } catch (err) {
+      setDoubts((prev) =>
+        prev.map((doubt) => {
+          if (doubt.id === doubtId) {
+            return {
+              ...doubt,
+              replies: (doubt.replies || []).filter((r) => r.id !== tempReplyId),
+            };
+          }
+          return doubt;
+        })
+      );
+      throw err;
+    }
   };
 
   // Quick simulation toggle for this class
@@ -310,12 +372,14 @@ export default function ClassDetailPage() {
         </div>
       </div>
 
-      {/* Ask Doubt Composer with Real-Time Active Enforcement */}
+      {/* Ask Doubt Composer with Real-Time Active Enforcement & Simulation Mode */}
       <div className="pt-1">
         <DoubtComposer
           onAddDoubt={handleAddDoubt}
           isClassActive={activeStatus.isActive}
           scheduleInfo={scheduleInfo}
+          onEnableTestMode={handleToggleSimulation}
+          isSimulating={Boolean(simulatedDate)}
         />
       </div>
 

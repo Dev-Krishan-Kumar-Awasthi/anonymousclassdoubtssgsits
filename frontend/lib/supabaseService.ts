@@ -256,11 +256,34 @@ export async function fetchDoubtsForClass(classId: string): Promise<Doubt[]> {
 /**
  * Insert a new doubt into Supabase or fallback
  */
+// Single authoritative Realtime topic for the entire SGSITS Anonymous Doubts platform
+const REALTIME_CHANNEL_NAME = 'sgsits_realtime_doubts';
+
+let globalBroadcastChannel: any = null;
+
+function getGlobalBroadcaster() {
+  if (typeof window === 'undefined' || !isSupabaseConfigured() || !supabase) return null;
+  if (!globalBroadcastChannel) {
+    globalBroadcastChannel = supabase.channel(REALTIME_CHANNEL_NAME, {
+      config: { broadcast: { ack: false, self: true } },
+    });
+    globalBroadcastChannel.subscribe((status: string) => {
+      console.log('[Supabase Realtime Broadcaster] Status:', status);
+    });
+  }
+  return globalBroadcastChannel;
+}
+
+/**
+ * Insert a new doubt into Supabase or fallback
+ */
 export async function createDoubt(classId: string, content: string): Promise<Doubt> {
   const trimmed = content.trim();
   if (!trimmed) {
     throw new Error('Doubt content cannot be empty');
   }
+
+  let createdDoubt: Doubt;
 
   if (isSupabaseConfigured() && supabase) {
     const { data, error } = await supabase
@@ -276,7 +299,7 @@ export async function createDoubt(classId: string, content: string): Promise<Dou
       throw error;
     }
 
-    return {
+    createdDoubt = {
       id: data.id,
       classId: data.class_id,
       author: 'Anonymous Student',
@@ -284,22 +307,44 @@ export async function createDoubt(classId: string, content: string): Promise<Dou
       createdAt: 'Just now',
       replies: [],
     };
+  } else {
+    // Fallback to localStorage
+    createdDoubt = {
+      id: `d-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      classId,
+      author: 'Anonymous Student',
+      content: trimmed,
+      createdAt: 'Just now',
+      replies: [],
+    };
+    const existing = getLocalDoubts(classId);
+    saveLocalDoubts(classId, [createdDoubt, ...existing]);
   }
 
-  // Fallback to localStorage persistence + broadcast
-  const newDoubt: Doubt = {
-    id: `d-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-    classId,
-    author: 'Anonymous Student',
-    content: trimmed,
-    createdAt: 'Just now',
-    replies: [],
-  };
+  // Layer 1: Supabase Realtime WebSocket Broadcast (<30ms to all remote devices)
+  try {
+    const broadcaster = getGlobalBroadcaster();
+    if (broadcaster) {
+      broadcaster.send({
+        type: 'broadcast',
+        event: 'NEW_DOUBT',
+        payload: createdDoubt,
+      });
+    }
+  } catch (e) {
+    console.warn('Realtime broadcast error:', e);
+  }
 
-  const existing = getLocalDoubts(classId);
-  const updated = [newDoubt, ...existing];
-  saveLocalDoubts(classId, updated);
-  return newDoubt;
+  // Layer 2: Browser BroadcastChannel (<1ms to all other tabs on same device)
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      const bc = new BroadcastChannel('sgsits_ask_global');
+      bc.postMessage({ type: 'NEW_DOUBT', payload: createdDoubt });
+      bc.close();
+    } catch {}
+  }
+
+  return createdDoubt;
 }
 
 /**
@@ -316,6 +361,8 @@ export async function createReply(
     throw new Error('Reply content cannot be empty');
   }
 
+  let createdReply: Reply;
+
   if (isSupabaseConfigured() && supabase) {
     const { data, error } = await supabase
       .from('replies')
@@ -330,36 +377,59 @@ export async function createReply(
       throw error;
     }
 
-    return {
+    createdReply = {
       id: data.id,
       doubtId: data.doubt_id,
       author: author,
       content: data.content,
       createdAt: 'Just now',
     };
+  } else {
+    // Fallback to localStorage
+    createdReply = {
+      id: `r-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      doubtId,
+      author: author,
+      content: trimmed,
+      createdAt: 'Just now',
+    };
+    const existing = getLocalDoubts(classId);
+    const updated = existing.map((d) => {
+      if (d.id === doubtId) {
+        return {
+          ...d,
+          replies: [...(d.replies || []), createdReply],
+        };
+      }
+      return d;
+    });
+    saveLocalDoubts(classId, updated);
   }
 
-  // Fallback to localStorage persistence + broadcast
-  const newReply: Reply = {
-    id: `r-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-    doubtId,
-    author: author,
-    content: trimmed,
-    createdAt: 'Just now',
-  };
-
-  const existing = getLocalDoubts(classId);
-  const updated = existing.map((d) => {
-    if (d.id === doubtId) {
-      return {
-        ...d,
-        replies: [...d.replies, newReply],
-      };
+  // Layer 1: Supabase Realtime WebSocket Broadcast
+  try {
+    const broadcaster = getGlobalBroadcaster();
+    if (broadcaster) {
+      broadcaster.send({
+        type: 'broadcast',
+        event: 'NEW_REPLY',
+        payload: { doubtId, classId, reply: createdReply },
+      });
     }
-    return d;
-  });
-  saveLocalDoubts(classId, updated);
-  return newReply;
+  } catch (e) {
+    console.warn('Realtime broadcast error:', e);
+  }
+
+  // Layer 2: Browser BroadcastChannel
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      const bc = new BroadcastChannel('sgsits_ask_global');
+      bc.postMessage({ type: 'NEW_REPLY', payload: { doubtId, classId, reply: createdReply } });
+      bc.close();
+    } catch {}
+  }
+
+  return createdReply;
 }
 
 /**
@@ -371,29 +441,46 @@ export function subscribeToClass(
   onReplyInsert: (reply: Reply) => void
 ): () => void {
   const client = supabase;
+  let subChannel: any = null;
+
   if (isSupabaseConfigured() && client) {
-    const channelName = `class_room_${classId}`;
-    const channel = client
-      .channel(channelName)
+    const uniqueSubId = `class_sub_${classId}_${Math.random().toString(36).substring(2, 7)}`;
+    subChannel = client
+      .channel(uniqueSubId, {
+        config: { broadcast: { ack: false, self: true } },
+      })
+      // 1. WebSocket Broadcast: fast (<30ms)
+      .on('broadcast', { event: 'NEW_DOUBT' }, (event: any) => {
+        if (event.payload && event.payload.classId === classId) {
+          onDoubtInsert(event.payload);
+        }
+      })
+      .on('broadcast', { event: 'NEW_REPLY' }, (event: any) => {
+        if (event.payload?.classId === classId && event.payload?.reply) {
+          onReplyInsert(event.payload.reply);
+        }
+      })
+      // 2. PostgreSQL CDC (WAL database changes)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'doubts',
-          filter: `class_id=eq.${classId}`,
         },
         (payload) => {
           const newRow = payload.new;
-          const doubt: Doubt = {
-            id: newRow.id,
-            classId: newRow.class_id,
-            author: 'Anonymous Student',
-            content: newRow.content,
-            createdAt: formatRelativeTime(newRow.created_at),
-            replies: [],
-          };
-          onDoubtInsert(doubt);
+          if (newRow && newRow.class_id === classId) {
+            const doubt: Doubt = {
+              id: newRow.id,
+              classId: newRow.class_id,
+              author: 'Anonymous Student',
+              content: newRow.content,
+              createdAt: formatRelativeTime(newRow.created_at),
+              replies: [],
+            };
+            onDoubtInsert(doubt);
+          }
         }
       )
       .on(
@@ -405,42 +492,48 @@ export function subscribeToClass(
         },
         (payload) => {
           const newRow = payload.new;
-          const reply: Reply = {
-            id: newRow.id,
-            doubtId: newRow.doubt_id,
-            author: 'Anonymous Student',
-            content: newRow.content,
-            createdAt: formatRelativeTime(newRow.created_at),
-          };
-          onReplyInsert(reply);
+          if (newRow) {
+            const reply: Reply = {
+              id: newRow.id,
+              doubtId: newRow.doubt_id,
+              author: 'Anonymous Student',
+              content: newRow.content,
+              createdAt: formatRelativeTime(newRow.created_at),
+            };
+            onReplyInsert(reply);
+          }
         }
       )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log(`Supabase Realtime subscribed to ${channelName}`);
-        }
+      .subscribe((status: string) => {
+        console.log(`[Class Realtime ${classId}] Subscription status:`, status);
       });
-
-    return () => {
-      client.removeChannel(channel);
-    };
   }
 
-  // Multi-tab fallback via BroadcastChannel when running locally without Supabase env
+  // 3. Multi-tab cross-tab broadcast (same computer/browser)
+  let bc: any = null;
   if (typeof BroadcastChannel !== 'undefined') {
-    const bc = new BroadcastChannel(`sgsits_ask_${classId}`);
-    bc.onmessage = (event) => {
-      if (event.data?.type === 'SYNC' && Array.isArray(event.data?.doubts)) {
-        // Broadcasted full sync
-        event.data.doubts.forEach((d: Doubt) => onDoubtInsert(d));
-      }
-    };
-    return () => {
-      bc.close();
-    };
+    try {
+      bc = new BroadcastChannel('sgsits_ask_global');
+      bc.onmessage = (event: any) => {
+        if (event.data?.type === 'NEW_DOUBT' && event.data.payload?.classId === classId) {
+          onDoubtInsert(event.data.payload);
+        } else if (event.data?.type === 'NEW_REPLY' && event.data.payload?.reply) {
+          if (event.data.payload.classId === classId) {
+            onReplyInsert(event.data.payload.reply);
+          }
+        }
+      };
+    } catch {}
   }
 
-  return () => {};
+  return () => {
+    if (client && subChannel) {
+      client.removeChannel(subChannel);
+    }
+    if (bc) {
+      bc.close();
+    }
+  };
 }
 
 /**
@@ -451,9 +544,27 @@ export function subscribeToAllDoubts(
   onReplyInsert: (reply: Reply) => void
 ): () => void {
   const client = supabase;
+  let allChannel: any = null;
+
   if (isSupabaseConfigured() && client) {
-    const channel = client
-      .channel('all_doubts_feed')
+    const uniqueSubId = `all_doubts_sub_${Math.random().toString(36).substring(2, 7)}`;
+    allChannel = client
+      .channel(uniqueSubId, {
+        config: { broadcast: { ack: false, self: true } },
+      })
+      // 1. WebSocket Broadcast: fast (<30ms)
+      .on('broadcast', { event: 'NEW_DOUBT' }, (event: any) => {
+        if (event.payload) {
+          const classInfo = OOP_CLASSES.find((c) => c.id === event.payload.classId);
+          onDoubtInsert({ ...event.payload, classInfo });
+        }
+      })
+      .on('broadcast', { event: 'NEW_REPLY' }, (event: any) => {
+        if (event.payload?.reply) {
+          onReplyInsert(event.payload.reply);
+        }
+      })
+      // 2. PostgreSQL CDC WAL
       .on(
         'postgres_changes',
         {
@@ -463,17 +574,19 @@ export function subscribeToAllDoubts(
         },
         (payload) => {
           const newRow = payload.new;
-          const classInfo = OOP_CLASSES.find((c) => c.id === newRow.class_id);
-          const doubt: Doubt & { classInfo?: OOPClass } = {
-            id: newRow.id,
-            classId: newRow.class_id,
-            author: 'Anonymous Student',
-            content: newRow.content,
-            createdAt: formatRelativeTime(newRow.created_at),
-            replies: [],
-            classInfo,
-          };
-          onDoubtInsert(doubt);
+          if (newRow) {
+            const classInfo = OOP_CLASSES.find((c) => c.id === newRow.class_id);
+            const doubt: Doubt & { classInfo?: OOPClass } = {
+              id: newRow.id,
+              classId: newRow.class_id,
+              author: 'Anonymous Student',
+              content: newRow.content,
+              createdAt: formatRelativeTime(newRow.created_at),
+              replies: [],
+              classInfo,
+            };
+            onDoubtInsert(doubt);
+          }
         }
       )
       .on(
@@ -485,22 +598,45 @@ export function subscribeToAllDoubts(
         },
         (payload) => {
           const newRow = payload.new;
-          const reply: Reply = {
-            id: newRow.id,
-            doubtId: newRow.doubt_id,
-            author: 'Anonymous Student',
-            content: newRow.content,
-            createdAt: formatRelativeTime(newRow.created_at),
-          };
-          onReplyInsert(reply);
+          if (newRow) {
+            const reply: Reply = {
+              id: newRow.id,
+              doubtId: newRow.doubt_id,
+              author: 'Anonymous Student',
+              content: newRow.content,
+              createdAt: formatRelativeTime(newRow.created_at),
+            };
+            onReplyInsert(reply);
+          }
         }
       )
-      .subscribe();
-
-    return () => {
-      client.removeChannel(channel);
-    };
+      .subscribe((status: string) => {
+        console.log('[All Doubts Realtime] Subscription status:', status);
+      });
   }
 
-  return () => {};
+  // 3. Browser BroadcastChannel (<1ms cross-tab sync)
+  let bc: any = null;
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      bc = new BroadcastChannel('sgsits_ask_global');
+      bc.onmessage = (event: any) => {
+        if (event.data?.type === 'NEW_DOUBT' && event.data.payload) {
+          const classInfo = OOP_CLASSES.find((c) => c.id === event.data.payload.classId);
+          onDoubtInsert({ ...event.data.payload, classInfo });
+        } else if (event.data?.type === 'NEW_REPLY' && event.data.payload?.reply) {
+          onReplyInsert(event.data.payload.reply);
+        }
+      };
+    } catch {}
+  }
+
+  return () => {
+    if (client && allChannel) {
+      client.removeChannel(allChannel);
+    }
+    if (bc) {
+      bc.close();
+    }
+  };
 }

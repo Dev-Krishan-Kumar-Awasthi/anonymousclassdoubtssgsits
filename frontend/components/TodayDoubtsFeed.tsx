@@ -7,6 +7,7 @@ import {
   fetchAllDoubts,
   subscribeToAllDoubts,
   createReply,
+  createDoubt,
 } from '@/lib/supabaseService';
 import { DoubtCard } from '@/components/DoubtCard';
 import {
@@ -24,6 +25,8 @@ import {
   BookOpen,
   User,
   ShieldAlert,
+  Send,
+  Lock,
 } from 'lucide-react';
 
 interface TodayDoubtsFeedProps {
@@ -38,6 +41,12 @@ export function TodayDoubtsFeed({ initialClassId, showHeader = true }: TodayDoub
   const [searchQuery, setSearchQuery] = useState('');
   const [userRole, setUserRole] = useState<'student' | 'teacher'>('student');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Quick doubt submission state
+  const [newDoubtText, setNewDoubtText] = useState('');
+  const [postClassId, setPostClassId] = useState<string>('oop-wednesday-4');
+  const [isPosting, setIsPosting] = useState(false);
+  const [postSuccess, setPostSuccess] = useState<string | null>(null);
 
   // Load all doubts across all classes
   const loadAll = async () => {
@@ -55,6 +64,23 @@ export function TodayDoubtsFeed({ initialClassId, showHeader = true }: TodayDoub
 
   useEffect(() => {
     loadAll();
+  }, []);
+
+  // 3.5-second automatic background polling fallback
+  useEffect(() => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const fresh = await fetchAllDoubts();
+        setDoubts((prev) => {
+          if (fresh.length !== prev.length || fresh[0]?.id !== prev[0]?.id) {
+            return fresh;
+          }
+          return prev;
+        });
+      } catch {}
+    }, 3500);
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   // Real-time subscription across all classes
@@ -108,6 +134,32 @@ export function TodayDoubtsFeed({ initialClassId, showHeader = true }: TodayDoub
         return d;
       })
     );
+  };
+
+  const handleQuickPostDoubt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = newDoubtText.trim();
+    if (!text || isPosting) return;
+
+    try {
+      setIsPosting(true);
+      const created = await createDoubt(postClassId, text);
+      const classInfo = OOP_CLASSES.find((c) => c.id === postClassId);
+
+      // Optimistic instant update: shows on screen in 0ms!
+      setDoubts((prev) => [
+        { ...created, classInfo },
+        ...prev.filter((d) => d.id !== created.id),
+      ]);
+
+      setNewDoubtText('');
+      setPostSuccess('✓ Doubt posted live to classroom feed!');
+      setTimeout(() => setPostSuccess(null), 4000);
+    } catch (err: any) {
+      alert(err?.message || 'Could not post doubt');
+    } finally {
+      setIsPosting(false);
+    }
   };
 
   // Filtered doubts
@@ -214,6 +266,58 @@ export function TodayDoubtsFeed({ initialClassId, showHeader = true }: TodayDoub
           )}
         </div>
       )}
+
+      {/* Quick Doubt Composer Box */}
+      <div className="p-4 sm:p-5 border-b border-slate-200 bg-[#EAF3FB]/40">
+        <form onSubmit={handleQuickPostDoubt} className="space-y-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-[#0B1F3A]">
+              <Lock className="w-3.5 h-3.5 text-[#1769AA]" />
+              <span>Ask Doubt in Today&apos;s Lecture or Lab:</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-slate-500 font-semibold text-[11px]">Class:</span>
+              <select
+                value={postClassId}
+                onChange={(e) => setPostClassId(e.target.value)}
+                className="text-xs font-semibold px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:border-[#1769AA]"
+              >
+                {OOP_CLASSES.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.day} {cls.time.split('–')[0].trim()} ({cls.code} • {cls.room})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newDoubtText}
+              onChange={(e) => setNewDoubtText(e.target.value)}
+              placeholder="Type your question anonymously (e.g., Why do we use virtual functions in C++?)..."
+              disabled={isPosting}
+              className="flex-1 px-3.5 py-2.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA] text-slate-900 placeholder:text-slate-400"
+            />
+            <button
+              type="submit"
+              disabled={!newDoubtText.trim() || isPosting}
+              className="px-4 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-[#1769AA] to-[#0B1F3A] hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <span>{isPosting ? 'Posting...' : 'Ask Live'}</span>
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {postSuccess && (
+            <div className="p-2 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center gap-1.5 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+              <span>{postSuccess}</span>
+            </div>
+          )}
+        </form>
+      </div>
 
       {/* Filter and Search Bar */}
       <div className="p-4 sm:p-5 border-b border-slate-200 bg-[#F8FAFC] space-y-3">

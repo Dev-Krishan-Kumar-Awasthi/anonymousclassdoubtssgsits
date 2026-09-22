@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { OOP_CLASSES, OOPClass } from '@/data/mockData';
+import { OOP_CLASSES, OOPClass, Doubt } from '@/data/mockData';
 import { ClassCard } from '@/components/ClassCard';
 import { TodayDoubtsFeed } from '@/components/TodayDoubtsFeed';
-import { fetchDoubtCountsPerClass } from '@/lib/supabaseService';
+import { fetchDoubtCountsPerClass, createDoubt } from '@/lib/supabaseService';
 import {
   sortClassesWithActiveFirst,
   getIndiaCurrentDateTime,
@@ -43,7 +43,7 @@ import {
 } from 'lucide-react';
 
 export default function HomePage() {
-  const [activeTab, setActiveTab] = useState<'constructors' | 'vtable' | 'overriding'>('constructors');
+  const [activeTab, setActiveTab] = useState<'constructors' | 'vtable' | 'overriding' | 'custom'>('constructors');
   const [upvotes, setUpvotes] = useState({
     constructors: 24,
     vtable: 19,
@@ -52,6 +52,8 @@ export default function HomePage() {
   const [hasUpvoted, setHasUpvoted] = useState<Record<string, boolean>>({});
   const [demoInput, setDemoInput] = useState('');
   const [demoToast, setDemoToast] = useState<string | null>(null);
+  const [isSubmittingHeroDoubt, setIsSubmittingHeroDoubt] = useState(false);
+  const [heroLatestDoubt, setHeroLatestDoubt] = useState<Doubt | null>(null);
   const [simulatedDate, setSimulatedDate] = useState<Date | null>(null);
   const [timeInfo, setTimeInfo] = useState(() => getIndiaCurrentDateTime(null));
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -91,16 +93,29 @@ export default function HomePage() {
     setHasUpvoted((prev) => ({ ...prev, [key]: true }));
   };
 
-  const handleDemoSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!demoInput.trim()) return;
-    setDemoToast(`Doubt submitted to demo feed! Click 'Explore Classrooms' below to join a live lecture.`);
-    setDemoInput('');
-    setTimeout(() => setDemoToast(null), 5000);
-  };
-
   const sortedClasses = sortClassesWithActiveFirst(OOP_CLASSES, simulatedDate);
   const activeClass = sortedClasses.find((c) => c.isActive);
+
+  const handleHeroDoubtSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = demoInput.trim();
+    if (!text || isSubmittingHeroDoubt) return;
+
+    try {
+      setIsSubmittingHeroDoubt(true);
+      const targetClass = activeClass || sortedClasses[0];
+      const created = await createDoubt(targetClass.id, text);
+      setHeroLatestDoubt(created);
+      setActiveTab('custom');
+      setDemoToast(`✓ Doubt posted live to ${targetClass.code} classroom! Check "All Doubts of the Day" below.`);
+      setDemoInput('');
+      setTimeout(() => setDemoToast(null), 6000);
+    } catch (err: any) {
+      setDemoToast(`Error: ${err?.message || 'Could not post doubt'}`);
+    } finally {
+      setIsSubmittingHeroDoubt(false);
+    }
+  };
 
   return (
     <div className="flex flex-col selection:bg-[#EAF3FB] selection:text-[#1769AA]">
@@ -258,6 +273,20 @@ export default function HomePage() {
                   >
                     Static Methods
                   </button>
+                  {heroLatestDoubt && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('custom')}
+                      className={`flex-1 py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${
+                        activeTab === 'custom'
+                          ? 'bg-emerald-600 text-white shadow-sm font-black'
+                          : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>Live Doubt</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Discussion Simulator Feed */}
@@ -391,8 +420,39 @@ export default function HomePage() {
                     </div>
                   )}
 
+                  {activeTab === 'custom' && heroLatestDoubt && (
+                    <div className="p-4 rounded-xl bg-white border border-emerald-300 shadow-sm space-y-2.5 animate-fadeIn">
+                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                          <div className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px]">
+                            <User className="w-2.5 h-2.5" />
+                          </div>
+                          Anonymous Student (You)
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                          Live on Screen
+                        </span>
+                      </div>
+                      <p className="text-xs sm:text-sm font-black text-slate-900 leading-snug">
+                        &ldquo;{heroLatestDoubt.content}&rdquo;
+                      </p>
+                      <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
+                        <span className="text-[11px] font-medium">
+                          Synced live across classroom & today&apos;s feed.
+                        </span>
+                        <a
+                          href="#all-doubts-feed"
+                          className="text-[11px] font-bold text-[#1769AA] hover:underline"
+                        >
+                          View in Feed &darr;
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Interactive Test Input Bar */}
-                  <form onSubmit={handleDemoSubmit} className="pt-1">
+                  <form onSubmit={handleHeroDoubtSubmit} className="pt-1">
                     <div className="p-1.5 bg-white rounded-xl border border-slate-200 flex items-center gap-2 shadow-sm focus-within:border-[#1769AA] transition-colors">
                       <input
                         type="text"
@@ -403,10 +463,17 @@ export default function HomePage() {
                       />
                       <button
                         type="submit"
-                        className="px-3.5 py-1.5 text-xs font-bold text-white bg-[#1769AA] hover:bg-[#123B6D] rounded-lg shadow-sm transition-all flex items-center gap-1"
+                        disabled={isSubmittingHeroDoubt || !demoInput.trim()}
+                        className="px-3.5 py-1.5 text-xs font-bold text-white bg-[#1769AA] hover:bg-[#123B6D] rounded-lg shadow-sm transition-all flex items-center gap-1 disabled:opacity-50"
                       >
-                        <span>Send</span>
-                        <Send className="w-3 h-3" />
+                        {isSubmittingHeroDoubt ? (
+                          <span>Posting...</span>
+                        ) : (
+                          <>
+                            <span>Send</span>
+                            <Send className="w-3 h-3" />
+                          </>
+                        )}
                       </button>
                     </div>
                   </form>
