@@ -4,6 +4,7 @@
   "description": "SGSITS Anonymous Classroom Doubts Platform",
   "private": true,
   "scripts": {
+    "dev": "npm run dev:frontend",
     "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
     "build:backend": "npm run build --prefix backend",
