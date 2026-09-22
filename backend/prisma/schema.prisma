@@ -1,0 +1,189 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum SessionStatus {
+  SCHEDULED
+  STARTING_SOON
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum DoubtCategory {
+  CONCEPT
+  PROGRAMMING
+  ASSIGNMENT
+  EXAM_MST
+  LECTURE_PACE
+  OTHER
+}
+
+enum DoubtStatus {
+  PENDING
+  ANSWERED
+  PUBLISHED
+  RESOLVED
+  DISMISSED
+  FLAGGED
+}
+
+enum PulseRating {
+  FULLY
+  MOSTLY
+  PARTIAL
+  NEED_REVISION
+}
+
+model User {
+  id           String          @id @default(uuid())
+  email        String          @unique
+  passwordHash String
+  role         Role
+  isDemo       Boolean         @default(false)
+  student      StudentProfile?
+  teacher      TeacherProfile?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model StudentProfile {
+  id             String       @id @default(uuid())
+  userId         String       @unique
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName       String
+  rollNumber     String       @unique
+  departmentCode String       @default("IT")
+  academicYear   String       @default("2nd Year")
+  section        String       @default("B")
+  batch          String       @default("B2") // B1, B2, B3
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model TeacherProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName       String
+  teacherCode    String   @unique // US, VM, LP, IK, NA, ShV, PrKh, MuS, YS, AG
+  departmentCode String   @default("IT")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model TimetableEntry {
+  id           String        @id @default(uuid())
+  dayOfWeek    DayOfWeek
+  startTime    String        // "11:00 AM"
+  endTime      String        // "12:00 PM"
+  startMinutes Int           // 660 (minutes from midnight in IST)
+  endMinutes   Int           // 720
+  subjectCode  String        // "OOP", "MATH3", "DSD", "DS", "LSP", "COA"
+  subjectName  String
+  isLab        Boolean       @default(false)
+  section      String        @default("B")
+  batch        String?       // "B1", "B2", "B3" (null for all section)
+  teacherCodes String[]      // ["US"], ["LP", "IK"]
+  roomNumber   String        // "ATC-301", "LT-201", "LAB105"
+  sessions     ClassSession[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model ClassSession {
+  id               String          @id @default(uuid())
+  timetableEntryId String
+  timetableEntry   TimetableEntry  @relation(fields: [timetableEntryId], references: [id], onDelete: Cascade)
+  date             String          // "YYYY-MM-DD" in Asia/Kolkata
+  status           SessionStatus   @default(SCHEDULED)
+  actualRoomNumber String?
+  overrideTeacher  String?
+  notes            String?
+  startedAt        DateTime?
+  endedAt          DateTime?
+  doubts           Doubt[]
+  pulses           ClassPulse[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+model Doubt {
+  id             String          @id @default(uuid())
+  referenceNo    String          @unique // "#Q-1042"
+  internalUserId String          // Authenticated student for abuse-prevention (NEVER exposed to teacher)
+  classSessionId String?
+  classSession   ClassSession?   @relation(fields: [classSessionId], references: [id])
+  subjectCode    String
+  text           String
+  normalizedText String?
+  category       DoubtCategory   @default(CONCEPT)
+  isWholeClass   Boolean         @default(false)
+  status         DoubtStatus     @default(PENDING)
+  isPinned       Boolean         @default(false)
+  upvotes        Int             @default(0)
+  groupId        String?
+  group          DoubtGroup?     @relation(fields: [groupId], references: [id])
+  responses      DoubtResponse[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model DoubtResponse {
+  id                 String   @id @default(uuid())
+  doubtId            String
+  doubt              Doubt    @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+  teacherCode        String
+  answerText         String
+  isPublishedToClass Boolean  @default(false)
+  isSavedAsFaq       Boolean  @default(false)
+  createdAt          DateTime @default(now())
+}
+
+model DoubtGroup {
+  id          String   @id @default(uuid())
+  topicTitle  String
+  subjectCode String
+  doubts      Doubt[]
+  createdAt   DateTime @default(now())
+}
+
+model ClassPulse {
+  id             String       @id @default(uuid())
+  classSessionId String
+  classSession   ClassSession @relation(fields: [classSessionId], references: [id], onDelete: Cascade)
+  internalUserId String       // Masked internally
+  rating         PulseRating
+  createdAt      DateTime     @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      String   @default("INFO")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
