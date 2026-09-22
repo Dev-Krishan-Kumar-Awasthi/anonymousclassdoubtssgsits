@@ -220,4 +220,131 @@ export const INITIAL_DOUBTS: Record<string, Doubt[]> = {
       ],
     },
   ],
+  'oop-lab-wednesday-b1': [
+    {
+      id: 'd-w1',
+      classId: 'oop-lab-wednesday-b1',
+      author: 'Anonymous Student',
+      content: 'Getting NullPointerException when creating array of objects like Student[] arr = new Student[5]; How to fix?',
+      createdAt: '10 min ago',
+      replies: [
+        {
+          id: 'r-w1',
+          doubtId: 'd-w1',
+          author: 'Anonymous Student',
+          content: 'Creating the array only allocates 5 reference slots which initially hold null. You must instantiate each element in a loop: arr[i] = new Student();',
+          createdAt: '7 min ago',
+        },
+      ],
+    },
+    {
+      id: 'd-w2',
+      classId: 'oop-lab-wednesday-b1',
+      author: 'Anonymous Student',
+      content: 'what is class',
+      createdAt: '18 min ago',
+      replies: [
+        {
+          id: 'r-w2',
+          doubtId: 'd-w2',
+          author: 'Instructor (US)',
+          content: 'A class in OOP is a user-defined blueprint or prototype from which objects are created. It represents the set of properties or methods that are common to all objects of one type.',
+          createdAt: '12 min ago',
+        },
+      ],
+    },
+  ],
+  'oop-wednesday-4': [
+    {
+      id: 'd-w3',
+      classId: 'oop-wednesday-4',
+      author: 'Anonymous Student',
+      content: 'Why does super() call must be the very first statement inside a derived class constructor in Java?',
+      createdAt: '5 min ago',
+      replies: [
+        {
+          id: 'r-w3',
+          doubtId: 'd-w3',
+          author: 'Anonymous Student',
+          content: 'Because the parent class state must be fully initialized before the child class constructor executes. Otherwise child code might access uninitialized inherited members.',
+          createdAt: '3 min ago',
+        },
+        {
+          id: 'r-w4',
+          doubtId: 'd-w3',
+          author: 'Instructor (US)',
+          content: 'Remember if you do not write super(), Java automatically inserts super() with no arguments implicitly.',
+          createdAt: '1 min ago',
+        },
+      ],
+    },
+    {
+      id: 'd-w4',
+      classId: 'oop-wednesday-4',
+      author: 'Anonymous Student',
+      content: 'Can abstract classes have constructors in Java or C++ if we cannot instantiate them?',
+      createdAt: '14 min ago',
+      replies: [
+        {
+          id: 'r-w5',
+          doubtId: 'd-w4',
+          author: 'Instructor (US)',
+          content: 'Yes! Abstract classes can have constructors. They are executed via super() when concrete subclasses are instantiated to initialize common base fields.',
+          createdAt: '8 min ago',
+        },
+      ],
+    },
+    {
+      id: 'd-w5',
+      classId: 'oop-wednesday-4',
+      author: 'Anonymous Student',
+      content: 'Can we override a private or static method in Java?',
+      createdAt: '22 min ago',
+      replies: [
+        {
+          id: 'r-w6',
+          doubtId: 'd-w5',
+          author: 'Anonymous Student',
+          content: 'No! Static methods are bound at compile-time (method hiding), and private methods are not inherited at all.',
+          createdAt: '16 min ago',
+        },
+      ],
+    },
+  ],
+  'oop-thursday-11': [
+    {
+      id: 'd-th1',
+      classId: 'oop-thursday-11',
+      author: 'Anonymous Student',
+      content: 'What is the Diamond Problem in multiple inheritance and how does C++ solve it?',
+      createdAt: '12 min ago',
+      replies: [
+        {
+          id: 'r-th1',
+          doubtId: 'd-th1',
+          author: 'Anonymous Student',
+          content: 'The Diamond problem occurs when two parent classes inherit from the same grandparent. C++ solves it using virtual base classes (virtual public Base).',
+          createdAt: '6 min ago',
+        },
+      ],
+    },
+  ],
+  'oop-lab-friday-b2': [
+    {
+      id: 'd-f1',
+      classId: 'oop-lab-friday-b2',
+      author: 'Anonymous Student',
+      content: 'Why does Java require virtual function mechanism by default whereas C++ requires the virtual keyword explicitly?',
+      createdAt: '19 min ago',
+      replies: [
+        {
+          id: 'r-f1',
+          doubtId: 'd-f1',
+          author: 'Anonymous Student',
+          content: 'In Java, all non-static, non-final methods are virtual by default to embrace object-oriented polymorphism seamlessly.',
+          createdAt: '11 min ago',
+        },
+      ],
+    },
+  ],
 };

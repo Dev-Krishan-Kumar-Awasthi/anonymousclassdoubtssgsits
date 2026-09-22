@@ -1,13 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { OOP_CLASSES } from '@/data/mockData';
+import { OOP_CLASSES, OOPClass } from '@/data/mockData';
 import { ClassCard } from '@/components/ClassCard';
+import { TodayDoubtsFeed } from '@/components/TodayDoubtsFeed';
+import { fetchDoubtCountsPerClass } from '@/lib/supabaseService';
+import {
+  sortClassesWithActiveFirst,
+  getIndiaCurrentDateTime,
+} from '@/lib/timetableUtils';
 import {
   ArrowRight,
-  Building2,
   CheckCircle2,
   Clock,
   Sparkles,
@@ -21,189 +26,244 @@ import {
   Radio,
   Lock,
   ChevronRight,
-  TrendingUp,
   HelpCircle,
   GraduationCap,
+  MessageCircleQuestion,
+  Lightbulb,
+  ThumbsUp,
+  Layers,
+  Flame,
+  Pin,
+  Laptop,
+  Check,
+  Send,
+  Code2,
+  Share2,
+  Terminal,
 } from 'lucide-react';
 
 export default function HomePage() {
-  const [activeTab, setActiveTab] = useState<'overloading' | 'constructors' | 'polymorphism'>('overloading');
+  const [activeTab, setActiveTab] = useState<'constructors' | 'vtable' | 'overriding'>('constructors');
+  const [upvotes, setUpvotes] = useState({
+    constructors: 24,
+    vtable: 19,
+    overriding: 32,
+  });
+  const [hasUpvoted, setHasUpvoted] = useState<Record<string, boolean>>({});
+  const [demoInput, setDemoInput] = useState('');
+  const [demoToast, setDemoToast] = useState<string | null>(null);
+  const [simulatedDate, setSimulatedDate] = useState<Date | null>(null);
+  const [timeInfo, setTimeInfo] = useState(() => getIndiaCurrentDateTime(null));
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [doubtCounts, setDoubtCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    fetchDoubtCountsPerClass()
+      .then((c) => setDoubtCounts(c))
+      .catch((err) => console.warn('Could not load doubt counts:', err));
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeInfo(getIndiaCurrentDateTime(simulatedDate));
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [simulatedDate]);
+
+  const handleSimulate = (toggle: boolean) => {
+    if (!toggle) {
+      setSimulatedDate(null);
+      setTimeInfo(getIndiaCurrentDateTime(null));
+    } else {
+      const d = new Date();
+      const currentDay = d.getDay();
+      const diffToWednesday = 3 - currentDay;
+      d.setDate(d.getDate() + diffToWednesday);
+      d.setHours(16, 15, 0, 0);
+      setSimulatedDate(d);
+      setTimeInfo(getIndiaCurrentDateTime(d));
+    }
+  };
+
+  const handleUpvote = (key: 'constructors' | 'vtable' | 'overriding') => {
+    if (hasUpvoted[key]) return;
+    setUpvotes((prev) => ({ ...prev, [key]: prev[key] + 1 }));
+    setHasUpvoted((prev) => ({ ...prev, [key]: true }));
+  };
+
+  const handleDemoSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!demoInput.trim()) return;
+    setDemoToast(`Doubt submitted to demo feed! Click 'Explore Classrooms' below to join a live lecture.`);
+    setDemoInput('');
+    setTimeout(() => setDemoToast(null), 5000);
+  };
+
+  const sortedClasses = sortClassesWithActiveFirst(OOP_CLASSES, simulatedDate);
+  const activeClass = sortedClasses.find((c) => c.isActive);
 
   return (
     <div className="flex flex-col selection:bg-[#EAF3FB] selection:text-[#1769AA]">
       {/* ==================================================
-          1. HERO SECTION (High-Impact Visual Split Screen)
+          1. HERO SECTION (Editorial, High-Impact Modern Design)
           ================================================== */}
-      <section className="relative pt-10 pb-20 sm:pt-16 sm:pb-28 overflow-hidden bg-gradient-to-b from-white via-[#F6F8FB] to-[#EAF3FB]/40 border-b border-slate-200">
-        {/* Subtle geometric pattern */}
-        <div className="absolute inset-0 opacity-[0.035] bg-[radial-gradient(#0B1F3A_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute top-1/2 -left-24 w-80 h-80 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none" />
+      <section className="relative pt-10 pb-16 sm:pt-16 sm:pb-24 overflow-hidden bg-gradient-to-b from-[#FFFFFF] via-[#F8FAFC] to-[#EDF4FA] border-b border-slate-200/90">
+        {/* Ambient background glows */}
+        <div className="absolute inset-0 opacity-[0.03] bg-[radial-gradient(#0B1F3A_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
+        <div className="absolute -top-24 right-1/4 w-96 h-96 bg-sky-400/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/2 -left-20 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
-            {/* Left Hero Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-center">
+            
+            {/* Left Column: Value Proposition & Copy */}
             <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
-              {/* Institutional Eyebrow Badge */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-bold bg-white text-[#1769AA] border border-[#1769AA]/25 shadow-sm hover:shadow transition-all">
+              {/* Institution Pill Badge */}
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-bold bg-white text-[#1769AA] border border-[#1769AA]/30 shadow-sm hover:shadow-md transition-all">
                 <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1769AA] opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#1769AA]"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
                 <span className="tracking-wide">SGSITS INDORE • IT DEPT • 2ND YEAR SECTION B</span>
               </div>
 
-              {/* Main Headline H1 with SEO keywords */}
-              <h1 className="text-3xl sm:text-5xl lg:text-[52px] font-black tracking-tight text-[#0B1F3A] leading-[1.14]">
-                Ask the Question <br />
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#1769AA] via-[#2563EB] to-[#0284C7]">
-                  You Hesitate to Ask.
-                </span>
-              </h1>
+              {/* Bold Editorial Headline */}
+              <div className="space-y-3">
+                <h1 className="text-3xl sm:text-5xl lg:text-[54px] font-black tracking-tight text-[#0B1F3A] leading-[1.12]">
+                  Never Leave a Lecture <br />
+                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#1769AA] via-[#2563EB] to-[#0284C7]">
+                    With an Unasked Doubt.
+                  </span>
+                </h1>
+                <p className="text-base sm:text-xl font-bold text-[#1769AA] tracking-tight">
+                  Anonymous in the lecture hall. Loud and clear on the whiteboard.
+                </p>
+              </div>
 
-              {/* Supporting Text */}
+              {/* Nuanced Editorial Copy */}
               <p className="text-sm sm:text-base text-[#475467] leading-relaxed max-w-xl mx-auto lg:mx-0 font-normal">
-                <strong>Anonymous Class Doubts SGSITS</strong> gives students a comfortable,
-                judgment-free space to ask questions during lectures, discuss concepts with peers,
-                and learn together in real time.
+                When 80 students sit in <strong>ATC-301</strong> or <strong>LT-002</strong>, hesitation kills curiosity.
+                <span className="font-semibold text-slate-800"> Anonymous Class Doubts SGSITS</span> gives every student a judgment-free
+                channel to post questions in real time during OOP lectures and labs. No names, no roll numbers, no peer pressure.
               </p>
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3.5 pt-2">
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3.5 pt-1">
                 <Link
                   href="/classes"
-                  className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-[#1769AA] to-[#0B1F3A] hover:from-[#123B6D] hover:to-[#081528] text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
+                  className="px-7 py-3.5 rounded-xl bg-gradient-to-r from-[#1769AA] via-[#123B6D] to-[#0B1F3A] hover:opacity-95 text-white text-xs sm:text-sm font-bold shadow-lg shadow-[#1769AA]/20 transition-all flex items-center gap-2.5 hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <MessageSquare className="w-4 h-4" />
-                  <span>Explore OOP Classes</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <span>Join Live Classroom Feed</span>
+                  <ArrowRight className="w-4 h-4" />
                 </Link>
 
                 <a
-                  href="#how-it-works"
-                  className="px-6 py-3.5 rounded-xl bg-white hover:bg-slate-50 text-[#0B1F3A] border border-slate-300/90 text-xs sm:text-sm font-bold shadow-sm transition-all hover:border-[#1769AA] flex items-center gap-2"
+                  href="#psychology"
+                  className="px-6 py-3.5 rounded-xl bg-white hover:bg-slate-50 text-[#0B1F3A] border border-slate-300 text-xs sm:text-sm font-bold shadow-sm transition-all hover:border-[#1769AA] flex items-center gap-2"
                 >
                   <Sparkles className="w-4 h-4 text-[#1769AA]" />
-                  <span>How It Works</span>
+                  <span>Why Students Hesitate</span>
                 </a>
               </div>
 
-              {/* Trust Indicators */}
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-5 pt-3 text-xs font-semibold text-slate-700">
-                <div className="flex items-center gap-1.5 bg-white/80 px-2.5 py-1 rounded-md border border-slate-200">
+              {/* Trust Indicators Bar */}
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 sm:gap-4 pt-2 text-[11px] font-bold text-slate-700">
+                <div className="flex items-center gap-1.5 bg-white/95 px-3 py-1.5 rounded-lg border border-slate-200/90 shadow-sm">
                   <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <span>100% Anonymous to Class</span>
+                  <span>100% Cryptographic Anonymity</span>
                 </div>
-                <div className="flex items-center gap-1.5 bg-white/80 px-2.5 py-1 rounded-md border border-slate-200">
+                <div className="flex items-center gap-1.5 bg-white/95 px-3 py-1.5 rounded-lg border border-slate-200/90 shadow-sm">
                   <Zap className="w-4 h-4 text-[#1769AA] flex-shrink-0" />
-                  <span>Real-Time Updates</span>
+                  <span>Sub-100ms Realtime Sync</span>
                 </div>
-                <div className="flex items-center gap-1.5 bg-white/80 px-2.5 py-1 rounded-md border border-slate-200">
+                <div className="flex items-center gap-1.5 bg-white/95 px-3 py-1.5 rounded-lg border border-slate-200/90 shadow-sm">
                   <Clock className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                  <span>Official SGSITS Timetable</span>
+                  <span>Timetable-Gated Access</span>
                 </div>
               </div>
             </div>
 
-            {/* Right Side: Realistic High-Fidelity Discussion UI Mockup */}
+            {/* Right Column: Live Interactive Mock Classroom Terminal */}
             <div className="lg:col-span-5 flex justify-center relative">
-              {/* Floating Badge 1: Live Indicator */}
-              <div className="absolute -top-3.5 -right-2 sm:right-2 z-20 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-lg border border-slate-200 shadow-md text-xs font-bold text-[#0B1F3A] flex items-center gap-2 animate-bounce">
+              {/* Floating Live Badge */}
+              <div className="absolute -top-3.5 right-2 sm:right-4 z-20 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-md text-[11px] font-bold text-[#0B1F3A] flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-                <span>18 Doubts In Class Today</span>
+                <span>Live Feed • Real-Time Broadcast</span>
               </div>
 
-              {/* Floating Badge 2: Identity Guard */}
-              <div className="absolute -bottom-3.5 -left-2 sm:left-2 z-20 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-lg border border-slate-200 shadow-md text-xs font-bold text-[#1769AA] flex items-center gap-2">
-                <Lock className="w-3.5 h-3.5 text-[#1769AA]" />
-                <span>Identity Protected</span>
-              </div>
-
-              {/* Main Realistic Product Card */}
-              <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden transition-all hover:shadow-institutional-lg">
-                {/* Mockup Header */}
-                <div className="bg-gradient-to-r from-[#0B1F3A] to-[#123B6D] text-white p-4.5">
+              {/* Main Card Container */}
+              <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden transition-all hover:shadow-institutional-lg">
+                {/* Window Header */}
+                <div className="bg-[#0B1F3A] text-white p-4 border-b border-slate-800">
                   <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-rose-500/90" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-amber-500/90" />
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/90" />
+                    </div>
                     <span className="text-[10px] font-extrabold tracking-widest text-slate-300 uppercase">
-                      ANONYMOUS CLASS DOUBTS • SGSITS
+                      ATC-301 • LIVE ROOM
                     </span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white">
                       <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-                      LIVE
+                      ACTIVE NOW
                     </span>
                   </div>
-                  <h3 className="font-extrabold text-base tracking-tight text-white">
+
+                  <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
                     Object Oriented Programming (OOP)
                   </h3>
-                  <div className="flex items-center gap-3 text-[11px] text-slate-300 mt-1">
+                  <div className="flex items-center gap-2.5 text-[11px] text-slate-300 mt-1">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3 text-sky-400" /> Monday 11:00 AM – 12:00 PM
                     </span>
                     <span>•</span>
-                    <span className="font-semibold text-white">ATC-301</span>
+                    <span className="text-white font-semibold">Teacher: US</span>
                   </div>
                 </div>
 
-                {/* Interactive Mockup Tabs */}
-                <div className="flex border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('overloading')}
-                    className={`flex-1 py-2 text-center transition-colors ${
-                      activeTab === 'overloading' ? 'bg-white text-[#1769AA] border-b-2 border-[#1769AA] font-bold' : 'hover:text-slate-900'
-                    }`}
-                  >
-                    Question 1
-                  </button>
+                {/* Interactive Tab Selectors */}
+                <div className="flex bg-slate-100/90 p-1 border-b border-slate-200 text-xs font-bold text-slate-600 gap-1">
                   <button
                     type="button"
                     onClick={() => setActiveTab('constructors')}
-                    className={`flex-1 py-2 text-center transition-colors ${
-                      activeTab === 'constructors' ? 'bg-white text-[#1769AA] border-b-2 border-[#1769AA] font-bold' : 'hover:text-slate-900'
+                    className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
+                      activeTab === 'constructors'
+                        ? 'bg-white text-[#1769AA] shadow-sm'
+                        : 'hover:text-slate-900'
                     }`}
                   >
-                    Question 2
+                    super() Call
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('polymorphism')}
-                    className={`flex-1 py-2 text-center transition-colors ${
-                      activeTab === 'polymorphism' ? 'bg-white text-[#1769AA] border-b-2 border-[#1769AA] font-bold' : 'hover:text-slate-900'
+                    onClick={() => setActiveTab('vtable')}
+                    className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
+                      activeTab === 'vtable'
+                        ? 'bg-white text-[#1769AA] shadow-sm'
+                        : 'hover:text-slate-900'
                     }`}
                   >
-                    Question 3
+                    vtable & vptr
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('overriding')}
+                    className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
+                      activeTab === 'overriding'
+                        ? 'bg-white text-[#1769AA] shadow-sm'
+                        : 'hover:text-slate-900'
+                    }`}
+                  >
+                    Static Methods
                   </button>
                 </div>
 
-                {/* Mockup Body Content */}
+                {/* Discussion Simulator Feed */}
                 <div className="p-4 space-y-3 bg-[#F8FAFC]">
-                  {activeTab === 'overloading' && (
-                    <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm space-y-2.5">
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span className="font-bold text-[#0B1F3A] flex items-center gap-1.5">
-                          <div className="w-4 h-4 rounded-full bg-[#EAF3FB] text-[#1769AA] flex items-center justify-center text-[10px]">
-                            <User className="w-2.5 h-2.5" />
-                          </div>
-                          Anonymous Student
-                        </span>
-                        <span>2 min ago</span>
-                      </div>
-                      <p className="text-xs sm:text-sm font-semibold text-slate-900 leading-snug">
-                        &ldquo;What is the difference between method overloading and overriding?&rdquo;
-                      </p>
-                      <div className="p-2.5 rounded-lg bg-[#EAF3FB]/70 border border-[#1769AA]/20 text-xs text-slate-800 space-y-1">
-                        <span className="text-[10px] font-bold text-[#1769AA] block">
-                          Anonymous Student Reply:
-                        </span>
-                        <p className="leading-relaxed text-[11px]">
-                          Overloading has different method parameters in the same class (compile-time). Overriding provides a custom subclass implementation (runtime).
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
                   {activeTab === 'constructors' && (
-                    <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm space-y-2.5">
+                    <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-2.5">
                       <div className="flex items-center justify-between text-[11px] text-slate-500">
                         <span className="font-bold text-[#0B1F3A] flex items-center gap-1.5">
                           <div className="w-4 h-4 rounded-full bg-[#EAF3FB] text-[#1769AA] flex items-center justify-center text-[10px]">
@@ -211,24 +271,42 @@ export default function HomePage() {
                           </div>
                           Anonymous Student
                         </span>
-                        <span>5 min ago</span>
+                        <span>Just now</span>
                       </div>
-                      <p className="text-xs sm:text-sm font-semibold text-slate-900 leading-snug">
-                        &ldquo;Why do we need constructors if default constructor is automatically created?&rdquo;
+                      <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                        &ldquo;Why does super() must be the very first statement inside a derived class constructor in Java?&rdquo;
                       </p>
-                      <div className="p-2.5 rounded-lg bg-[#EAF3FB]/70 border border-[#1769AA]/20 text-xs text-slate-800 space-y-1">
-                        <span className="text-[10px] font-bold text-[#1769AA] block">
-                          Anonymous Student Reply:
-                        </span>
-                        <p className="leading-relaxed text-[11px]">
-                          Default constructors only initialize with default zeroes/nulls. Parameterized constructors let you pass custom initial values upon instantiation.
+                      <div className="p-3 rounded-lg bg-[#EAF3FB]/80 border border-[#1769AA]/20 text-xs text-slate-800 space-y-1">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-[#1769AA]">
+                          <span>Anonymous Peer Reply:</span>
+                          <span className="text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded font-semibold">
+                            ✓ Verified Concept
+                          </span>
+                        </div>
+                        <p className="leading-relaxed text-[11px] text-slate-700">
+                          Because the parent class state must be fully initialized before the child class constructor executes. Otherwise child code might access uninitialized inherited members.
                         </p>
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleUpvote('constructors')}
+                          className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all ${
+                            hasUpvoted.constructors
+                              ? 'bg-[#1769AA] text-white border-[#1769AA]'
+                              : 'bg-slate-50 hover:bg-[#EAF3FB] text-[#1769AA] border-slate-200'
+                          }`}
+                        >
+                          <ThumbsUp className="w-3 h-3" />
+                          <span>{upvotes.constructors} students had this doubt</span>
+                        </button>
+                        <span className="text-[10px] text-slate-400 font-mono">ATC-301</span>
                       </div>
                     </div>
                   )}
 
-                  {activeTab === 'polymorphism' && (
-                    <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm space-y-2.5">
+                  {activeTab === 'vtable' && (
+                    <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-2.5">
                       <div className="flex items-center justify-between text-[11px] text-slate-500">
                         <span className="font-bold text-[#0B1F3A] flex items-center gap-1.5">
                           <div className="w-4 h-4 rounded-full bg-[#EAF3FB] text-[#1769AA] flex items-center justify-center text-[10px]">
@@ -236,29 +314,109 @@ export default function HomePage() {
                           </div>
                           Anonymous Student
                         </span>
-                        <span>8 min ago</span>
+                        <span>3 min ago</span>
                       </div>
-                      <p className="text-xs sm:text-sm font-semibold text-slate-900 leading-snug">
-                        &ldquo;Can someone explain polymorphism with a simple real-world example?&rdquo;
+                      <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                        &ldquo;How does the compiler actually execute runtime polymorphism via vtable in C++?&rdquo;
                       </p>
-                      <div className="p-2.5 rounded-lg bg-[#EAF3FB]/70 border border-[#1769AA]/20 text-xs text-slate-800 space-y-1">
-                        <span className="text-[10px] font-bold text-[#1769AA] block">
-                          Anonymous Student Reply:
-                        </span>
-                        <p className="leading-relaxed text-[11px]">
-                          Like a smartphone: one device that acts as a camera, music player, and phone depending on what you call!
+                      <div className="p-3 rounded-lg bg-[#EAF3FB]/80 border border-[#1769AA]/20 text-xs text-slate-800 space-y-1">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-[#1769AA]">
+                          <span>Anonymous Peer Reply:</span>
+                          <span className="text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded font-semibold">
+                            ✓ Core Topic
+                          </span>
+                        </div>
+                        <p className="leading-relaxed text-[11px] text-slate-700">
+                          Every class with virtual functions has a hidden table of function pointers (<code className="bg-white/80 px-1 rounded text-sky-800">vtable</code>). Each object stores an invisible pointer (<code className="bg-white/80 px-1 rounded text-sky-800">_vptr</code>) resolved at runtime!
                         </p>
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleUpvote('vtable')}
+                          className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all ${
+                            hasUpvoted.vtable
+                              ? 'bg-[#1769AA] text-white border-[#1769AA]'
+                              : 'bg-slate-50 hover:bg-[#EAF3FB] text-[#1769AA] border-slate-200'
+                          }`}
+                        >
+                          <ThumbsUp className="w-3 h-3" />
+                          <span>{upvotes.vtable} students found this helpful</span>
+                        </button>
+                        <span className="text-[10px] text-slate-400 font-mono">LT-002</span>
                       </div>
                     </div>
                   )}
 
-                  {/* Fake Composer Bar inside Preview */}
-                  <div className="p-2.5 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-2 shadow-sm">
-                    <div className="text-xs text-slate-400 pl-1">Ask doubt anonymously...</div>
-                    <span className="px-3 py-1 text-[11px] font-bold text-white bg-[#1769AA] rounded-md shadow-sm">
-                      Send
-                    </span>
-                  </div>
+                  {activeTab === 'overriding' && (
+                    <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-2.5">
+                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span className="font-bold text-[#0B1F3A] flex items-center gap-1.5">
+                          <div className="w-4 h-4 rounded-full bg-[#EAF3FB] text-[#1769AA] flex items-center justify-center text-[10px]">
+                            <User className="w-2.5 h-2.5" />
+                          </div>
+                          Anonymous Student
+                        </span>
+                        <span>7 min ago</span>
+                      </div>
+                      <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                        &ldquo;Can we override a static method in Java? Why or why not?&rdquo;
+                      </p>
+                      <div className="p-3 rounded-lg bg-[#EAF3FB]/80 border border-[#1769AA]/20 text-xs text-slate-800 space-y-1">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-[#1769AA]">
+                          <span>Anonymous Peer Reply:</span>
+                          <span className="text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded font-semibold">
+                            ✓ Exam Favorite
+                          </span>
+                        </div>
+                        <p className="leading-relaxed text-[11px] text-slate-700">
+                          No! Static methods are bound at compile-time using the Class reference, not object reference. Redefining it in a subclass is <strong>method hiding</strong>, not overriding.
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleUpvote('overriding')}
+                          className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all ${
+                            hasUpvoted.overriding
+                              ? 'bg-[#1769AA] text-white border-[#1769AA]'
+                              : 'bg-slate-50 hover:bg-[#EAF3FB] text-[#1769AA] border-slate-200'
+                          }`}
+                        >
+                          <ThumbsUp className="w-3 h-3" />
+                          <span>{upvotes.overriding} students upvoted</span>
+                        </button>
+                        <span className="text-[10px] text-slate-400 font-mono">Room 207</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Interactive Test Input Bar */}
+                  <form onSubmit={handleDemoSubmit} className="pt-1">
+                    <div className="p-1.5 bg-white rounded-xl border border-slate-200 flex items-center gap-2 shadow-sm focus-within:border-[#1769AA] transition-colors">
+                      <input
+                        type="text"
+                        value={demoInput}
+                        onChange={(e) => setDemoInput(e.target.value)}
+                        placeholder="Try typing a test doubt anonymously..."
+                        className="flex-1 text-xs px-2.5 py-1.5 text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        className="px-3.5 py-1.5 text-xs font-bold text-white bg-[#1769AA] hover:bg-[#123B6D] rounded-lg shadow-sm transition-all flex items-center gap-1"
+                      >
+                        <span>Send</span>
+                        <Send className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </form>
+
+                  {demoToast && (
+                    <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span>{demoToast}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -267,88 +425,130 @@ export default function HomePage() {
       </section>
 
       {/* ==================================================
-          2. STATS & CAMPUS HIGHLIGHTS BAR
+          2. LIVE CAMPUS TIMETABLE RADAR BAR
           ================================================== */}
-      <section className="bg-white border-b border-slate-200/90 py-6 px-4 sm:px-6 shadow-sm">
-        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-          <div className="p-2">
-            <div className="text-2xl sm:text-3xl font-black text-[#0B1F3A]">6 Slots</div>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">Authoritative OOP Lectures & Labs</p>
+      <section className="bg-white border-b border-slate-200 py-3.5 px-4 sm:px-6 sticky top-[57px] z-40 shadow-sm backdrop-blur-md bg-white/95">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-slate-700">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="font-extrabold text-[#0B1F3A]">SGSITS Timetable Radar:</span>
+            <span className="font-mono bg-slate-100 px-2.5 py-1 rounded text-slate-800 font-semibold border border-slate-200">
+              {timeInfo.dayName}, {timeInfo.formattedTime} (Asia/Kolkata)
+            </span>
           </div>
-          <div className="p-2">
-            <div className="text-2xl sm:text-3xl font-black text-[#1769AA]">100%</div>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">Anonymous Student Display</p>
-          </div>
-          <div className="p-2">
-            <div className="text-2xl sm:text-3xl font-black text-[#0B1F3A]">Real-Time</div>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">Live Question & Reply Sync</p>
-          </div>
-          <div className="p-2">
-            <div className="text-2xl sm:text-3xl font-black text-emerald-600">Zero Fear</div>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">No Hand-Raising Awkwardness</p>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {activeClass ? (
+              <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-300 text-emerald-900 px-3 py-1 rounded-full font-bold">
+                <Radio className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                <span>Class is in Session: {activeClass.code} ({activeClass.time})</span>
+              </div>
+            ) : (
+              <span className="text-slate-500 font-medium">
+                ⚪ No active class at this moment • Next slot opens during lecture hours
+              </span>
+            )}
+
+            {/* 1-Click Simulation Controls for testing */}
+            <div className="hidden lg:flex items-center gap-1.5 border-l border-slate-200 pl-3">
+              <span className="text-[10px] text-slate-400 font-bold uppercase">Test Simulation:</span>
+              <button
+                type="button"
+                onClick={() => handleSimulate(!simulatedDate)}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded border transition-colors ${
+                  simulatedDate
+                    ? 'bg-amber-100 text-amber-900 border-amber-300'
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border-slate-200'
+                }`}
+              >
+                {simulatedDate ? 'Reset to Real Time' : 'Simulate Wed 4 PM'}
+              </button>
+            </div>
+
+            <Link
+              href="/classes"
+              className="font-bold text-[#1769AA] hover:text-[#0B1F3A] flex items-center gap-1 transition-colors ml-1"
+            >
+              <span>View All 6 Rooms</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
       </section>
 
       {/* ==================================================
-          3. PROBLEM SECTION (Visual Storytelling)
+          3. PSYCHOLOGY SECTION ("Why Students Hesitate")
           ================================================== */}
-      <section className="py-20 px-4 sm:px-6 max-w-6xl mx-auto w-full">
+      <section id="psychology" className="py-20 px-4 sm:px-6 max-w-6xl mx-auto w-full scroll-mt-20">
         <div className="text-center space-y-3 mb-14">
           <span className="text-xs font-bold uppercase tracking-wider text-[#1769AA] bg-[#EAF3FB] px-3.5 py-1 rounded-full border border-[#1769AA]/20">
-            Why We Built This
+            The Psychology of the Engineering Lecture
           </span>
           <h2 className="text-2xl sm:text-4xl font-extrabold text-[#0B1F3A] tracking-tight">
-            Sometimes the easiest question is the hardest to ask.
+            Why 80% of College Doubts Never Get Asked.
           </h2>
           <p className="text-xs sm:text-sm text-[#667085] max-w-2xl mx-auto leading-relaxed">
-            In engineering classrooms at SGSITS, students frequently hesitate to raise their hand,
-            interrupt the lecture, or ask basic conceptual doubts in front of 70+ peers.
+            In engineering classrooms at SGSITS, doubts don&apos;t go unasked because students don&apos;t care.
+            They go unasked because of social anxiety, fast lecture pace, and fear of looking foolish.
           </p>
         </div>
 
-        {/* Visual Comparison Grid */}
+        {/* Side by Side Comparison Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
-          {/* Left: The Classroom Silence Trap */}
-          <div className="bg-white p-7 rounded-2xl border border-rose-200/80 shadow-sm space-y-5 flex flex-col justify-between hover:shadow-md transition-shadow">
+          
+          {/* Card 1: Traditional Classroom Experience */}
+          <div className="bg-white p-7 sm:p-8 rounded-2xl border border-rose-200 shadow-sm space-y-6 flex flex-col justify-between hover:shadow-md transition-shadow">
             <div>
               <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-5">
                 <span className="font-bold text-xs uppercase tracking-wider text-rose-700 flex items-center gap-2">
                   <XCircle className="w-4 h-4 text-rose-500" />
-                  The Old Classroom Hesitation
+                  The Old Lecture Dilemma
                 </span>
-                <span className="text-[10px] font-bold text-rose-800 bg-rose-50 px-2 py-0.5 rounded">
-                  Hesitation Loop
+                <span className="text-[10px] font-bold text-rose-800 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
+                  Fear of Judgment
                 </span>
               </div>
 
-              <div className="space-y-3 text-xs text-slate-700">
-                <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center gap-3">
-                  <span className="text-lg">💭</span>
-                  <span className="font-medium">&ldquo;I didn&apos;t understand this code snippet...&rdquo;</span>
+              <div className="space-y-3.5 text-xs text-slate-700">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-3">
+                  <span className="text-xl">⚠️</span>
+                  <div>
+                    <span className="font-bold text-slate-900 block">&ldquo;Wait, why did we use virtual destructor here?&rdquo;</span>
+                    <span className="text-[11px] text-slate-500">Teacher shifts to the next slide while confusion lingers.</span>
+                  </div>
                 </div>
+
                 <div className="text-center text-slate-400 text-xs">↓</div>
-                <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center gap-3">
-                  <span className="text-lg">😬</span>
-                  <span className="font-medium">&ldquo;What if everyone else already knows this? I&apos;ll look foolish.&rdquo;</span>
+
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-3">
+                  <span className="text-xl">🤐</span>
+                  <div>
+                    <span className="font-bold text-slate-900 block">&ldquo;Should I interrupt? What if 75 classmates laugh?&rdquo;</span>
+                    <span className="text-[11px] text-slate-500">Social friction forces the hand down. The doubt remains unspoken.</span>
+                  </div>
                 </div>
+
                 <div className="text-center text-slate-400 text-xs">↓</div>
-                <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center gap-3">
-                  <span className="text-lg">🤐</span>
-                  <span className="font-medium">&ldquo;I&apos;ll ask sir after class... (and then forget or leave)&rdquo;</span>
+
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-3">
+                  <span className="text-xl">📚</span>
+                  <div>
+                    <span className="font-bold text-slate-900 block">&ldquo;I&apos;ll just Google it tonight...&rdquo;</span>
+                    <span className="text-[11px] text-slate-500">Forgotten until the night before the midsem exam.</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 text-xs font-bold text-center">
-              ❌ Doubt remains unanswered • Conceptual gap remains in exams
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 text-xs font-bold text-center">
+              ❌ Doubt stays unresolved • Same confusion repeats in semester practicals
             </div>
           </div>
 
-          {/* Right: Anonymous Class Doubts SGSITS */}
-          <div className="bg-white p-7 rounded-2xl border-2 border-[#1769AA]/40 shadow-md space-y-5 flex flex-col justify-between relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-[#1769AA] text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-wider">
-              Solution
+          {/* Card 2: Anonymous Class Doubts SGSITS Experience */}
+          <div className="bg-white p-7 sm:p-8 rounded-2xl border-2 border-[#1769AA]/60 shadow-md space-y-6 flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-gradient-to-r from-[#1769AA] to-[#0B1F3A] text-white text-[10px] font-bold px-3.5 py-1 rounded-bl-lg uppercase tracking-wider">
+              The Engineering Fix
             </div>
 
             <div>
@@ -357,69 +557,165 @@ export default function HomePage() {
                   <CheckCircle2 className="w-4 h-4 text-[#1769AA]" />
                   With Anonymous Class Doubts SGSITS
                 </span>
-                <span className="text-[10px] font-bold text-[#1769AA] bg-[#EAF3FB] px-2 py-0.5 rounded">
-                  Frictionless
+                <span className="text-[10px] font-bold text-[#1769AA] bg-[#EAF3FB] px-2.5 py-0.5 rounded-full border border-[#1769AA]/20">
+                  Zero Hesitation
                 </span>
               </div>
 
-              {/* 4-Stage Connected Pipeline */}
-              <div className="grid grid-cols-4 gap-2 text-center py-3">
+              {/* 4-Stage Connected Workflow */}
+              <div className="grid grid-cols-4 gap-2 text-center py-2">
                 <div className="p-2.5 rounded-xl bg-[#EAF3FB] border border-[#1769AA]/20">
-                  <div className="font-bold text-xs text-[#0B1F3A]">Student</div>
-                  <div className="text-[10px] text-[#1769AA]">Types doubt</div>
+                  <div className="font-extrabold text-xs text-[#0B1F3A]">Student</div>
+                  <div className="text-[10px] text-[#1769AA]">Types in app</div>
                 </div>
                 <div className="p-2.5 rounded-xl bg-[#EAF3FB] border border-[#1769AA]/20">
-                  <div className="font-bold text-xs text-[#0B1F3A]">Anonymous</div>
-                  <div className="text-[10px] text-[#1769AA]">No names</div>
+                  <div className="font-extrabold text-xs text-[#0B1F3A]">Anonymous</div>
+                  <div className="text-[10px] text-[#1769AA]">Zero identity</div>
                 </div>
                 <div className="p-2.5 rounded-xl bg-[#EAF3FB] border border-[#1769AA]/20">
-                  <div className="font-bold text-xs text-[#0B1F3A]">Discuss</div>
-                  <div className="text-[10px] text-[#1769AA]">Peers reply</div>
+                  <div className="font-extrabold text-xs text-[#0B1F3A]">Real-Time</div>
+                  <div className="text-[10px] text-[#1769AA]">Live in feed</div>
                 </div>
-                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
-                  <div className="font-bold text-xs text-emerald-900">Clarity</div>
-                  <div className="text-[10px] text-emerald-700">Class learns</div>
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-300">
+                  <div className="font-extrabold text-xs text-emerald-900">Solved</div>
+                  <div className="text-[10px] text-emerald-700">Batch learns</div>
                 </div>
               </div>
 
-              <div className="space-y-2.5 pt-4 text-xs text-slate-700">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <span><strong>Zero judgment:</strong> No peer pressure, ask whatever you need to understand</span>
+              <div className="space-y-3.5 pt-4 text-xs text-slate-700">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-slate-900">Complete Psychological Safety:</strong>
+                    <span className="text-slate-600"> Ask whatever is genuinely confusing you without worrying about peer judgment.</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <span><strong>Instant visibility:</strong> Questions appear live for all classmates in that room</span>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-slate-900">The Silent Majority Benefit:</strong>
+                    <span className="text-slate-600"> When you post about method hiding, 20 quiet batchmates immediately gain clarity too.</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <span><strong>Shared peer insights:</strong> When one student asks, 10 others learn the same concept</span>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-slate-900">Persistent Revision Archive:</strong>
+                    <span className="text-slate-600"> Questions don&apos;t evaporate. They stay saved in the room to revise before midsem exams!</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs font-bold text-center">
-              ✓ Ask it. Discuss it. Understand it.
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs font-bold text-center">
+              ✓ Ask it without fear. Learn with confidence. Master your semester.
             </div>
           </div>
         </div>
       </section>
 
       {/* ==================================================
-          4. CLASSES SHOWCASE (Direct Access)
+          4. THE 4 PILLARS (Bento Grid Style)
           ================================================== */}
-      <section id="classes" className="py-20 px-4 sm:px-6 bg-white border-y border-slate-200 scroll-mt-16">
-        <div className="max-w-7xl mx-auto space-y-10">
+      <section className="py-20 px-4 sm:px-6 bg-white border-y border-slate-200/90 scroll-mt-16">
+        <div className="max-w-6xl mx-auto space-y-12">
+          <div className="text-center space-y-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#1769AA] bg-[#EAF3FB] px-3.5 py-1 rounded-full border border-[#1769AA]/20">
+              Architected for Engineering Excellence
+            </span>
+            <h2 className="text-2xl sm:text-4xl font-extrabold text-[#0B1F3A] tracking-tight">
+              Built Specifically for SGSITS Classrooms.
+            </h2>
+            <p className="text-xs sm:text-sm text-[#667085] max-w-lg mx-auto leading-relaxed">
+              Every feature is purposefully tailored to the actual physical classroom workflow of SGSITS Indore.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            {/* Bento Card 1: Zero Identity */}
+            <div className="p-6 rounded-2xl bg-[#F8FAFC] border border-slate-200 space-y-3.5 hover:shadow-md hover:border-[#1769AA]/40 transition-all flex flex-col justify-between group">
+              <div className="space-y-3.5">
+                <div className="w-11 h-11 rounded-xl bg-blue-100 text-[#1769AA] flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <h3 className="font-extrabold text-sm text-[#0B1F3A]">100% Cryptographic Anonymity</h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  No sign-ins, no email collection, no roll numbers. Doubts are submitted with randomized anonymous tokens that protect student privacy completely.
+                </p>
+              </div>
+              <div className="text-[10px] font-bold text-[#1769AA] bg-white p-2 rounded-lg border border-slate-200 text-center">
+                ZERO IDENTITY LEAKAGE
+              </div>
+            </div>
+
+            {/* Bento Card 2: Timetable Aware */}
+            <div className="p-6 rounded-2xl bg-[#F8FAFC] border border-slate-200 space-y-3.5 hover:shadow-md hover:border-emerald-500/40 transition-all flex flex-col justify-between group">
+              <div className="space-y-3.5">
+                <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <h3 className="font-extrabold text-sm text-[#0B1F3A]">Timetable Radar & Pinning</h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  The system automatically detects whether a class is live based on the official SGSITS IT Section B timetable. The active lecture is pinned straight to #1.
+                </p>
+              </div>
+              <div className="text-[10px] font-bold text-emerald-700 bg-white p-2 rounded-lg border border-slate-200 text-center">
+                LIVE ASIA/KOLKATA TIME
+              </div>
+            </div>
+
+            {/* Bento Card 3: Supabase Realtime */}
+            <div className="p-6 rounded-2xl bg-[#F8FAFC] border border-slate-200 space-y-3.5 hover:shadow-md hover:border-purple-500/40 transition-all flex flex-col justify-between group">
+              <div className="space-y-3.5">
+                <div className="w-11 h-11 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Zap className="w-5 h-5" />
+                </div>
+                <h3 className="font-extrabold text-sm text-[#0B1F3A]">Instant WebSocket Sync</h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Powered by Supabase Realtime replication. When a doubt is sent, it appears instantly on every screen in the room without requiring a page reload.
+                </p>
+              </div>
+              <div className="text-[10px] font-bold text-purple-700 bg-white p-2 rounded-lg border border-slate-200 text-center">
+                ZERO REFRESH NEEDED
+              </div>
+            </div>
+
+            {/* Bento Card 4: Exam Vault */}
+            <div className="p-6 rounded-2xl bg-[#F8FAFC] border border-slate-200 space-y-3.5 hover:shadow-md hover:border-amber-500/40 transition-all flex flex-col justify-between group">
+              <div className="space-y-3.5">
+                <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Flame className="w-5 h-5" />
+                </div>
+                <h3 className="font-extrabold text-sm text-[#0B1F3A]">Permanent Exam Revision</h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Doubts asked during week 3 remain saved and searchable during week 14 before MST-1 and endsems. An organic question bank built by your own batch.
+                </p>
+              </div>
+              <div className="text-[10px] font-bold text-amber-700 bg-white p-2 rounded-lg border border-slate-200 text-center">
+                PERSISTENT ARCHIVE
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================================================
+          5. CLASSROOMS DIRECTORY (With Active Pinning)
+          ================================================== */}
+      <section id="classes" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto w-full scroll-mt-16">
+        <div className="space-y-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
             <div className="space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-[#1769AA] bg-[#EAF3FB] px-3 py-1 rounded-full border border-[#1769AA]/20">
-                SGSITS Timetable Classrooms
-              </span>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-[#EAF3FB] text-[#1769AA] border border-[#1769AA]/20">
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Object Oriented Programming • Section B Timetable</span>
+              </div>
               <h2 className="text-2xl sm:text-4xl font-extrabold text-[#0B1F3A] tracking-tight">
-                Explore Classes
+                Scheduled Classrooms
               </h2>
               <p className="text-xs sm:text-sm text-[#667085]">
-                Open a scheduled Object Oriented Programming class or lab slot to join the anonymous discussion.
+                Select your current room to enter the real-time feed. The live class automatically pins to #1.
               </p>
             </div>
 
@@ -427,93 +723,112 @@ export default function HomePage() {
               href="/classes"
               className="text-xs font-bold text-[#1769AA] hover:text-[#0B1F3A] flex items-center gap-1.5 transition-colors group"
             >
-              <span>View all 6 OOP classes</span>
+              <span>Explore All Rooms</span>
               <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
 
-          {/* Grid of OOP Class Cards */}
+          {/* Grid of OOP Class Cards with Active Class Pinned First */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {OOP_CLASSES.map((cls) => (
-              <ClassCard key={cls.id} cls={cls} />
+            {sortedClasses.map((cls, idx) => (
+              <ClassCard
+                key={cls.id}
+                cls={cls}
+                isActive={cls.isActive}
+                statusText={cls.statusText}
+                isPinned={cls.isActive && idx === 0}
+                doubtCount={doubtCounts[cls.id]}
+              />
             ))}
           </div>
         </div>
       </section>
 
       {/* ==================================================
-          5. HOW IT WORKS (3 Step Interactive Flow)
+          6. LIVE ALL DOUBTS OF THE DAY (Student & Teacher View)
           ================================================== */}
-      <section id="how-it-works" className="py-20 px-4 sm:px-6 max-w-6xl mx-auto w-full scroll-mt-16">
-        <div className="text-center space-y-3 mb-14">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#1769AA] bg-[#EAF3FB] px-3 py-1 rounded-full border border-[#1769AA]/20">
-            Frictionless Process
-          </span>
-          <h2 className="text-2xl sm:text-4xl font-extrabold text-[#0B1F3A] tracking-tight">
-            How It Works
-          </h2>
-          <p className="text-xs sm:text-sm text-[#667085] max-w-lg mx-auto leading-relaxed">
-            From lecture confusion to crystal-clear understanding in 3 quick steps.
-          </p>
-        </div>
+      <section id="today-doubts" className="py-16 px-4 sm:px-6 max-w-7xl mx-auto w-full scroll-mt-16">
+        <TodayDoubtsFeed showHeader={true} />
+      </section>
 
-        {/* 3 Connected Steps */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-          {/* Step 01 */}
-          <div className="p-7 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4 hover:border-[#1769AA]/60 hover:shadow-md transition-all group">
-            <div className="w-12 h-12 rounded-xl bg-[#EAF3FB] text-[#1769AA] flex items-center justify-center font-black text-lg group-hover:bg-[#1769AA] group-hover:text-white transition-colors">
-              01
-            </div>
-            <h3 className="font-extrabold text-base text-[#0B1F3A]">Choose Your Class</h3>
-            <p className="text-xs text-[#667085] leading-relaxed">
-              Open your scheduled OOP lecture or lab based on the SGSITS timetable.
+      {/* ==================================================
+          6. FREQUENTLY ASKED QUESTIONS (Accordion FAQ)
+          ================================================== */}
+      <section className="py-20 px-4 sm:px-6 bg-[#F8FAFC] border-t border-slate-200/90 scroll-mt-16">
+        <div className="max-w-4xl mx-auto space-y-10">
+          <div className="text-center space-y-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#1769AA] bg-[#EAF3FB] px-3.5 py-1 rounded-full border border-[#1769AA]/20">
+              Student Questions
+            </span>
+            <h2 className="text-2xl sm:text-4xl font-extrabold text-[#0B1F3A] tracking-tight">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-xs sm:text-sm text-[#667085] max-w-lg mx-auto leading-relaxed">
+              Clear answers on anonymity, timetable gating, and how the platform works.
             </p>
-            <div className="p-2.5 bg-[#F8FAFC] rounded-lg text-[11px] font-bold text-[#1769AA] text-center border border-slate-200">
-              CLASSROOM SELECTION
-            </div>
           </div>
 
-          {/* Step 02 */}
-          <div className="p-7 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4 hover:border-[#1769AA]/60 hover:shadow-md transition-all group">
-            <div className="w-12 h-12 rounded-xl bg-[#EAF3FB] text-[#1769AA] flex items-center justify-center font-black text-lg group-hover:bg-[#1769AA] group-hover:text-white transition-colors">
-              02
-            </div>
-            <h3 className="font-extrabold text-base text-[#0B1F3A]">Ask Your Question</h3>
-            <p className="text-xs text-[#667085] leading-relaxed">
-              Type your doubt anonymously. Your name, email, or identity is never shown.
-            </p>
-            <div className="p-2.5 bg-[#F8FAFC] rounded-lg text-[11px] font-bold text-[#1769AA] text-center border border-slate-200">
-              ANONYMOUS SUBMISSION
-            </div>
-          </div>
-
-          {/* Step 03 */}
-          <div className="p-7 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4 hover:border-[#1769AA]/60 hover:shadow-md transition-all group">
-            <div className="w-12 h-12 rounded-xl bg-[#EAF3FB] text-[#1769AA] flex items-center justify-center font-black text-lg group-hover:bg-[#1769AA] group-hover:text-white transition-colors">
-              03
-            </div>
-            <h3 className="font-extrabold text-base text-[#0B1F3A]">Discuss & Learn</h3>
-            <p className="text-xs text-[#667085] leading-relaxed">
-              Read peer explanations, reply with code examples, and clear concepts together.
-            </p>
-            <div className="p-2.5 bg-[#F8FAFC] rounded-lg text-[11px] font-bold text-[#1769AA] text-center border border-slate-200">
-              COMMUNITY CLARITY
-            </div>
+          <div className="space-y-3.5">
+            {[
+              {
+                q: "Is my identity genuinely 100% anonymous? Can anyone trace my roll number?",
+                a: "Yes, 100% anonymous. There is no signup, no login, no email verification, and no IP/roll-number broadcast. Doubts and replies are simply posted as 'Anonymous Student'. You can ask any question without any risk of peer judgment."
+              },
+              {
+                q: "Why does the app show 'Class is not active' when I try to post outside lecture hours?",
+                a: "To prevent spam and keep doubts tightly relevant to what is currently being taught in class, doubts can only be submitted during scheduled lecture & lab slots. However, all existing doubts and replies remain readable 24/7 for exam revision!"
+              },
+              {
+                q: "Can I ask doubts in Hinglish or only formal English?",
+                a: "You can ask in English, Hinglish, or casual code snippets! The focus is conceptual clarity—feel free to write: 'Sir ye virtual destructor wala concept clear nahi hua' or 'Can super() be used in static methods?'"
+              },
+              {
+                q: "How does the real-time timetable synchronization work?",
+                a: "The platform evaluates the real Indian Standard Time (Asia/Kolkata). When your Monday 11 AM, Wednesday 4 PM, or practical lab slot arrives, that room turns green ('LIVE NOW') and automatically pins to the #1 position on the dashboard."
+              },
+              {
+                q: "Can classmates answer my doubts or only the teacher?",
+                a: "Anyone in the class can reply! Often, a classmate has already cracked the issue or has a great code example to share. Teachers can also view the live feed on their screen to address trending questions directly on the whiteboard."
+              }
+            ].map((faq, idx) => (
+              <div
+                key={idx}
+                className="rounded-xl bg-white border border-slate-200 overflow-hidden shadow-sm transition-all"
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
+                  className="w-full text-left p-4 sm:p-5 flex items-center justify-between gap-4 font-bold text-sm text-[#0B1F3A] hover:text-[#1769AA] transition-colors"
+                >
+                  <span>{faq.q}</span>
+                  <ChevronRight
+                    className={`w-4 h-4 text-slate-400 transition-transform ${
+                      openFaq === idx ? 'rotate-90 text-[#1769AA]' : ''
+                    }`}
+                  />
+                </button>
+                {openFaq === idx && (
+                  <div className="px-4 pb-5 sm:px-5 text-xs text-slate-600 leading-relaxed border-t border-slate-100 pt-3">
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* ==================================================
-          6. FINAL CTA
+          7. INSPIRING CALL TO ACTION
           ================================================== */}
-      <section className="py-20 px-4 sm:px-6 bg-gradient-to-b from-[#F6F8FB] to-white border-t border-slate-200 text-center relative overflow-hidden">
+      <section className="py-20 px-4 sm:px-6 bg-gradient-to-b from-[#FFFFFF] via-[#F8FAFC] to-[#EDF4FA] border-t border-slate-200 text-center relative overflow-hidden">
         <div className="max-w-2xl mx-auto space-y-6 relative z-10">
-          <div className="inline-block p-2 bg-white rounded-2xl shadow-sm border border-slate-200">
+          <div className="inline-block p-2.5 bg-white rounded-2xl shadow-md border border-slate-200">
             <Image
               src="/sgsits-logo.png"
               alt="SGSITS Indore"
-              width={48}
-              height={48}
+              width={56}
+              height={56}
               className="object-contain"
             />
           </div>
@@ -522,16 +837,17 @@ export default function HomePage() {
             Have a Doubt in Class?
           </h2>
 
-          <p className="text-sm sm:text-base text-[#667085] leading-relaxed max-w-lg mx-auto">
-            Don&apos;t keep it to yourself. One simple question can clear a core concept for your entire batch.
+          <p className="text-sm sm:text-base text-[#667085] leading-relaxed max-w-lg mx-auto font-normal">
+            Never stay quiet out of hesitation. One simple question asked by you can clear a crucial concept for your entire batch.
           </p>
 
           <div className="pt-2 flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/classes"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gradient-to-r from-[#1769AA] to-[#0B1F3A] hover:from-[#123B6D] hover:to-[#081528] text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all hover:scale-[1.02]"
+              className="inline-flex items-center gap-2.5 px-8 py-4 rounded-xl bg-gradient-to-r from-[#1769AA] via-[#123B6D] to-[#0B1F3A] text-white text-xs sm:text-sm font-bold shadow-lg shadow-[#1769AA]/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
-              <span>Explore OOP Classes</span>
+              <MessageSquare className="w-4 h-4" />
+              <span>Enter Classroom Feed</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

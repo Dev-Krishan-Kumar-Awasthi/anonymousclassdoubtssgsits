@@ -7,7 +7,7 @@ import { MessageSquare, User, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface DoubtCardProps {
   doubt: Doubt;
-  onAddReply: (doubtId: string, replyText: string) => Promise<boolean | void>;
+  onAddReply: (doubtId: string, replyText: string, author?: string) => Promise<boolean | void>;
 }
 
 export function DoubtCard({ doubt, onAddReply }: DoubtCardProps) {

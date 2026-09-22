@@ -8,7 +8,7 @@ import { MessageSquareDashed } from 'lucide-react';
 interface DiscussionFeedProps {
   doubts: Doubt[];
   loading?: boolean;
-  onAddReply: (doubtId: string, replyText: string) => Promise<boolean | void>;
+  onAddReply: (doubtId: string, replyText: string, author?: string) => Promise<boolean | void>;
 }
 
 export function DiscussionFeed({ doubts, loading, onAddReply }: DiscussionFeedProps) {

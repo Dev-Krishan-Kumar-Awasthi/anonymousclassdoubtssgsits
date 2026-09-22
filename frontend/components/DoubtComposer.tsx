@@ -1,13 +1,19 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Send, Lock, Loader2 } from 'lucide-react';
+import { Send, Lock, Loader2, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 interface DoubtComposerProps {
   onAddDoubt: (doubtText: string) => Promise<boolean | void>;
+  isClassActive?: boolean;
+  scheduleInfo?: string;
 }
 
-export function DoubtComposer({ onAddDoubt }: DoubtComposerProps) {
+export function DoubtComposer({
+  onAddDoubt,
+  isClassActive = true,
+  scheduleInfo = 'Scheduled Class Hours',
+}: DoubtComposerProps) {
   const [doubtText, setDoubtText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,6 +22,14 @@ export function DoubtComposer({ onAddDoubt }: DoubtComposerProps) {
     e.preventDefault();
     const trimmed = doubtText.trim();
     if (!trimmed || isSubmitting) return;
+
+    // Strict validation: Class must be active!
+    if (!isClassActive) {
+      setError(
+        `Class is not active! You cannot send messages right now. Doubts can only be asked when this class is live (${scheduleInfo}).`
+      );
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -30,16 +44,46 @@ export function DoubtComposer({ onAddDoubt }: DoubtComposerProps) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-4 sm:p-5">
+    <div
+      className={`bg-white rounded-2xl border transition-all p-4 sm:p-5 ${
+        isClassActive
+          ? 'border-slate-200/90 shadow-sm'
+          : 'border-amber-200/90 bg-amber-50/20 shadow-sm'
+      }`}
+    >
       <div className="flex items-center justify-between mb-2.5">
-        <div className="flex items-center gap-1.5 text-xs font-bold text-[#0B1F3A]">
+        <div className="flex items-center gap-2 text-xs font-bold text-[#0B1F3A]">
           <Lock className="w-3.5 h-3.5 text-[#1769AA]" />
           <span>Ask Anonymously</span>
+          {isClassActive ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+              Class Live
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+              <AlertTriangle className="w-3 h-3 text-amber-700" />
+              Class is Not Active
+            </span>
+          )}
         </div>
         <span className="text-[11px] text-[#667085]">
           Your identity appears as &ldquo;Anonymous Student&rdquo;
         </span>
       </div>
+
+      {/* Inactive Class Warning Notice */}
+      {!isClassActive && (
+        <div className="mb-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
+          <ShieldAlert className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <span className="font-bold block">Class is Not Active</span>
+            <p className="text-[11px] text-amber-800">
+              This lecture is currently offline ({scheduleInfo}). Asking doubts is enabled only during the scheduled lecture slot.
+            </p>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-3">
         <textarea
@@ -50,25 +94,41 @@ export function DoubtComposer({ onAddDoubt }: DoubtComposerProps) {
             setDoubtText(e.target.value);
             if (error) setError(null);
           }}
-          placeholder="Type your doubt here (e.g. What is method overriding in Java?)..."
-          className="w-full p-3 text-xs sm:text-sm bg-slate-50/60 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1769AA]/40 focus:border-[#1769AA] text-slate-800 placeholder:text-slate-400 resize-none transition-all disabled:opacity-60"
+          placeholder={
+            isClassActive
+              ? "Type your doubt here (e.g. What is method overriding in Java?)..."
+              : `Class is not active (${scheduleInfo}). Typing will show "Class is not active" error on send.`
+          }
+          className={`w-full p-3.5 text-xs sm:text-sm rounded-xl border focus:outline-none transition-all resize-none ${
+            isClassActive
+              ? 'bg-slate-50/70 border-slate-300 focus:ring-2 focus:ring-[#1769AA]/40 focus:border-[#1769AA] text-slate-800 placeholder:text-slate-400'
+              : 'bg-white border-amber-200/90 text-slate-800 placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-300/30'
+          }`}
         />
 
+        {/* Error message */}
         {error && (
-          <p className="text-xs text-rose-600 font-medium">
-            {error}
-          </p>
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-semibold flex items-center gap-2 animate-shake">
+            <ShieldAlert className="w-4 h-4 text-rose-600 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
         )}
 
         <div className="flex items-center justify-between gap-3">
           <p className="text-[11px] text-slate-500 italic hidden sm:block">
-            Questions are saved permanently and visible to class members.
+            {isClassActive
+              ? 'Questions are visible to classmates and teacher in real-time.'
+              : `Schedule: ${scheduleInfo}`}
           </p>
 
           <button
             type="submit"
             disabled={!doubtText.trim() || isSubmitting}
-            className="ml-auto px-5 py-2.5 text-xs font-bold text-white bg-[#1769AA] hover:bg-[#123B6D] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2"
+            className={`ml-auto px-5 py-2.5 text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-2 ${
+              isClassActive
+                ? 'bg-[#1769AA] hover:bg-[#123B6D] text-white hover:shadow'
+                : 'bg-amber-600 hover:bg-amber-700 text-white hover:shadow'
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
           >
             {isSubmitting ? (
               <>
