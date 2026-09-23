@@ -90,13 +90,31 @@ export function Footer() {
 
       <div className="max-w-7xl mx-auto pt-6 flex flex-col sm:flex-row justify-between items-center gap-3 text-[11px] text-slate-400 relative z-10">
         <p>
-          © 2026 Anonymous Class Doubts SGSITS • Department of Information Technology • Academic Prototype
+          © 2026 Anonymous Class Doubts SGSITS • Department of Information Technology
         </p>
         <div className="flex items-center gap-4 text-[#60A5FA]">
           <span>Indore, Madhya Pradesh</span>
           <span>•</span>
           <span>Asia/Kolkata Timetable</span>
         </div>
+      </div>
+
+      {/* Developer Credit */}
+      <div className="max-w-7xl mx-auto pt-4 pb-1 flex justify-center items-center relative z-10 border-t border-slate-800 mt-4">
+        <a
+          href="https://kkawasthi.vercel.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group inline-flex items-center gap-2 text-[11px] text-slate-500 hover:text-white transition-all duration-300"
+        >
+          <span>Designed &amp; Developed by</span>
+          <span className="font-bold text-[#60A5FA] group-hover:text-white group-hover:underline underline-offset-2 transition-all duration-200 flex items-center gap-1">
+            Krishan Kumar Awasthi
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </span>
+        </a>
       </div>
     </footer>
   );
