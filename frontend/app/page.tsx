@@ -6,7 +6,12 @@ import Image from 'next/image';
 import { OOP_CLASSES, OOPClass, Doubt } from '@/data/mockData';
 import { ClassCard } from '@/components/ClassCard';
 import { TodayDoubtsFeed } from '@/components/TodayDoubtsFeed';
-import { fetchDoubtCountsPerClass, createDoubt } from '@/lib/supabaseService';
+import {
+  fetchDoubtCountsPerClass,
+  createDoubt,
+  fetchAllDoubts,
+  subscribeToAllDoubts,
+} from '@/lib/supabaseService';
 import {
   sortClassesWithActiveFirst,
   getIndiaCurrentDateTime,
@@ -43,17 +48,11 @@ import {
 } from 'lucide-react';
 
 export default function HomePage() {
-  const [activeTab, setActiveTab] = useState<'constructors' | 'vtable' | 'overriding' | 'custom'>('constructors');
-  const [upvotes, setUpvotes] = useState({
-    constructors: 24,
-    vtable: 19,
-    overriding: 32,
-  });
-  const [hasUpvoted, setHasUpvoted] = useState<Record<string, boolean>>({});
-  const [demoInput, setDemoInput] = useState('');
-  const [demoToast, setDemoToast] = useState<string | null>(null);
+  const [heroDoubtText, setHeroDoubtText] = useState('');
+  const [heroClassId, setHeroClassId] = useState<string>('oop-wednesday-4');
   const [isSubmittingHeroDoubt, setIsSubmittingHeroDoubt] = useState(false);
-  const [heroLatestDoubt, setHeroLatestDoubt] = useState<Doubt | null>(null);
+  const [heroSuccessMsg, setHeroSuccessMsg] = useState<string | null>(null);
+  const [liveRecentDoubts, setLiveRecentDoubts] = useState<(Doubt & { classInfo?: OOPClass })[]>([]);
   const [simulatedDate, setSimulatedDate] = useState<Date | null>(null);
   const [timeInfo, setTimeInfo] = useState(() => getIndiaCurrentDateTime(null));
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -63,6 +62,22 @@ export default function HomePage() {
     fetchDoubtCountsPerClass()
       .then((c) => setDoubtCounts(c))
       .catch((err) => console.warn('Could not load doubt counts:', err));
+
+    fetchAllDoubts()
+      .then((all) => setLiveRecentDoubts(all.slice(0, 3)))
+      .catch((err) => console.warn('Could not load recent doubts:', err));
+
+    // Listen to real-time broadcasts from all devices
+    const unsubscribe = subscribeToAllDoubts(
+      (newDoubt) => {
+        setLiveRecentDoubts((prev) => [newDoubt, ...prev.filter((d) => d.id !== newDoubt.id)].slice(0, 3));
+      },
+      () => {}
+    );
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -87,31 +102,41 @@ export default function HomePage() {
     }
   };
 
-  const handleUpvote = (key: 'constructors' | 'vtable' | 'overriding') => {
-    if (hasUpvoted[key]) return;
-    setUpvotes((prev) => ({ ...prev, [key]: prev[key] + 1 }));
-    setHasUpvoted((prev) => ({ ...prev, [key]: true }));
-  };
-
   const sortedClasses = sortClassesWithActiveFirst(OOP_CLASSES, simulatedDate);
   const activeClass = sortedClasses.find((c) => c.isActive);
 
+  // If there is an active class, default to it
+  useEffect(() => {
+    if (activeClass) {
+      setHeroClassId(activeClass.id);
+    }
+  }, [activeClass]);
+
   const handleHeroDoubtSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const text = demoInput.trim();
+    const text = heroDoubtText.trim();
     if (!text || isSubmittingHeroDoubt) return;
 
     try {
       setIsSubmittingHeroDoubt(true);
-      const targetClass = activeClass || sortedClasses[0];
-      const created = await createDoubt(targetClass.id, text);
-      setHeroLatestDoubt(created);
-      setActiveTab('custom');
-      setDemoToast(`✓ Doubt posted live to ${targetClass.code} classroom! Check "All Doubts of the Day" below.`);
-      setDemoInput('');
-      setTimeout(() => setDemoToast(null), 6000);
+      const targetClassId = heroClassId || activeClass?.id || sortedClasses[0].id;
+      const created = await createDoubt(targetClassId, text);
+      const classInfo = OOP_CLASSES.find((c) => c.id === targetClassId);
+      const fullDoubt = { ...created, classInfo };
+
+      // Instant optimistic UI update (0ms)
+      setLiveRecentDoubts((prev) => [fullDoubt, ...prev.filter((d) => d.id !== created.id)].slice(0, 3));
+      setHeroDoubtText('');
+      setHeroSuccessMsg('✓ Live! Your doubt is visible on all screens across campus.');
+      setTimeout(() => setHeroSuccessMsg(null), 5000);
+
+      // Smooth scroll down to central feed
+      const feedEl = document.getElementById('today-doubts-feed');
+      if (feedEl) {
+        feedEl.scrollIntoView({ behavior: 'smooth' });
+      }
     } catch (err: any) {
-      setDemoToast(`Error: ${err?.message || 'Could not post doubt'}`);
+      alert(err?.message || 'Could not post doubt');
     } finally {
       setIsSubmittingHeroDoubt(false);
     }
@@ -199,18 +224,18 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Right Column: Live Interactive Mock Classroom Terminal */}
+            {/* Right Column: Real-Time Live Classroom Terminal */}
             <div className="lg:col-span-5 flex justify-center relative">
               {/* Floating Live Badge */}
               <div className="absolute -top-3.5 right-2 sm:right-4 z-20 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-200 shadow-md text-[11px] font-bold text-[#0B1F3A] flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-                <span>Live Feed • Real-Time Broadcast</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span className="text-emerald-700 font-extrabold">LIVE SERVER CONNECTED • 20ms</span>
               </div>
 
-              {/* Main Card Container */}
-              <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden transition-all hover:shadow-institutional-lg">
-                {/* Window Header */}
-                <div className="bg-[#0B1F3A] text-white p-4 border-b border-slate-800">
+              {/* Main Terminal Container */}
+              <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200/90 shadow-2xl overflow-hidden transition-all">
+                {/* Terminal Header */}
+                <div className="bg-[#0B1F3A] text-white p-4 sm:p-5 border-b border-slate-800">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5">
                       <div className="w-2.5 h-2.5 rounded-full bg-rose-500/90" />
@@ -218,272 +243,140 @@ export default function HomePage() {
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/90" />
                     </div>
                     <span className="text-[10px] font-extrabold tracking-widest text-slate-300 uppercase">
-                      ATC-301 • LIVE ROOM
+                      SGSITS IT LIVE TERMINAL
                     </span>
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white">
                       <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-                      ACTIVE NOW
+                      ACTIVE
                     </span>
                   </div>
 
-                  <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
-                    Object Oriented Programming (OOP)
-                  </h3>
-                  <div className="flex items-center gap-2.5 text-[11px] text-slate-300 mt-1">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-sky-400" /> Monday 11:00 AM – 12:00 PM
-                    </span>
-                    <span>•</span>
-                    <span className="text-white font-semibold">Teacher: US</span>
+                  <div className="flex items-center justify-between gap-2 mt-2">
+                    <div>
+                      <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
+                        {activeClass ? activeClass.subject : 'Object Oriented Programming'}
+                      </h3>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-300 mt-0.5">
+                        <span className="text-sky-300 font-semibold">
+                          {activeClass ? `${activeClass.code} • ${activeClass.room}` : 'LT-002 • 2nd Year Sec B'}
+                        </span>
+                        <span>•</span>
+                        <span className="text-white font-medium">Instructor: US</span>
+                      </div>
+                    </div>
+                    {activeClass ? (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                        CLASS LIVE
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-400">
+                        Scheduled Slot
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Interactive Tab Selectors */}
-                <div className="flex bg-slate-100/90 p-1 border-b border-slate-200 text-xs font-bold text-slate-600 gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('constructors')}
-                    className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
-                      activeTab === 'constructors'
-                        ? 'bg-white text-[#1769AA] shadow-sm'
-                        : 'hover:text-slate-900'
-                    }`}
-                  >
-                    super() Call
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('vtable')}
-                    className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
-                      activeTab === 'vtable'
-                        ? 'bg-white text-[#1769AA] shadow-sm'
-                        : 'hover:text-slate-900'
-                    }`}
-                  >
-                    vtable & vptr
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('overriding')}
-                    className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
-                      activeTab === 'overriding'
-                        ? 'bg-white text-[#1769AA] shadow-sm'
-                        : 'hover:text-slate-900'
-                    }`}
-                  >
-                    Static Methods
-                  </button>
-                  {heroLatestDoubt && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('custom')}
-                      className={`flex-1 py-1.5 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${
-                        activeTab === 'custom'
-                          ? 'bg-emerald-600 text-white shadow-sm font-black'
-                          : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                      }`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      <span>Live Doubt</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Discussion Simulator Feed */}
-                <div className="p-4 space-y-3 bg-[#F8FAFC]">
-                  {activeTab === 'constructors' && (
-                    <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-2.5">
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span className="font-bold text-[#0B1F3A] flex items-center gap-1.5">
-                          <div className="w-4 h-4 rounded-full bg-[#EAF3FB] text-[#1769AA] flex items-center justify-center text-[10px]">
-                            <User className="w-2.5 h-2.5" />
-                          </div>
-                          Anonymous Student
-                        </span>
-                        <span>Just now</span>
-                      </div>
-                      <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
-                        &ldquo;Why does super() must be the very first statement inside a derived class constructor in Java?&rdquo;
-                      </p>
-                      <div className="p-3 rounded-lg bg-[#EAF3FB]/80 border border-[#1769AA]/20 text-xs text-slate-800 space-y-1">
-                        <div className="flex items-center justify-between text-[10px] font-bold text-[#1769AA]">
-                          <span>Anonymous Peer Reply:</span>
-                          <span className="text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded font-semibold">
-                            ✓ Verified Concept
-                          </span>
-                        </div>
-                        <p className="leading-relaxed text-[11px] text-slate-700">
-                          Because the parent class state must be fully initialized before the child class constructor executes. Otherwise child code might access uninitialized inherited members.
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between pt-1">
-                        <button
-                          type="button"
-                          onClick={() => handleUpvote('constructors')}
-                          className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all ${
-                            hasUpvoted.constructors
-                              ? 'bg-[#1769AA] text-white border-[#1769AA]'
-                              : 'bg-slate-50 hover:bg-[#EAF3FB] text-[#1769AA] border-slate-200'
-                          }`}
+                {/* Live Doubt Submission Form */}
+                <div className="p-4 sm:p-5 bg-gradient-to-b from-[#F8FAFC] to-white space-y-4">
+                  <form onSubmit={handleHeroDoubtSubmit} className="space-y-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <label className="font-bold text-[#0B1F3A] flex items-center gap-1.5 text-xs">
+                          <Lock className="w-3.5 h-3.5 text-[#1769AA]" />
+                          <span>Ask Doubt Anonymously:</span>
+                        </label>
+                        <select
+                          value={heroClassId}
+                          onChange={(e) => setHeroClassId(e.target.value)}
+                          className="text-[11px] font-bold bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-800 focus:outline-none focus:border-[#1769AA]"
                         >
-                          <ThumbsUp className="w-3 h-3" />
-                          <span>{upvotes.constructors} students had this doubt</span>
-                        </button>
-                        <span className="text-[10px] text-slate-400 font-mono">ATC-301</span>
+                          {OOP_CLASSES.map((cls) => (
+                            <option key={cls.id} value={cls.id}>
+                              {cls.day} {cls.time.split('–')[0].trim()} ({cls.code})
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                    </div>
-                  )}
 
-                  {activeTab === 'vtable' && (
-                    <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-2.5">
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span className="font-bold text-[#0B1F3A] flex items-center gap-1.5">
-                          <div className="w-4 h-4 rounded-full bg-[#EAF3FB] text-[#1769AA] flex items-center justify-center text-[10px]">
-                            <User className="w-2.5 h-2.5" />
-                          </div>
-                          Anonymous Student
-                        </span>
-                        <span>3 min ago</span>
-                      </div>
-                      <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
-                        &ldquo;How does the compiler actually execute runtime polymorphism via vtable in C++?&rdquo;
-                      </p>
-                      <div className="p-3 rounded-lg bg-[#EAF3FB]/80 border border-[#1769AA]/20 text-xs text-slate-800 space-y-1">
-                        <div className="flex items-center justify-between text-[10px] font-bold text-[#1769AA]">
-                          <span>Anonymous Peer Reply:</span>
-                          <span className="text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded font-semibold">
-                            ✓ Core Topic
-                          </span>
-                        </div>
-                        <p className="leading-relaxed text-[11px] text-slate-700">
-                          Every class with virtual functions has a hidden table of function pointers (<code className="bg-white/80 px-1 rounded text-sky-800">vtable</code>). Each object stores an invisible pointer (<code className="bg-white/80 px-1 rounded text-sky-800">_vptr</code>) resolved at runtime!
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between pt-1">
-                        <button
-                          type="button"
-                          onClick={() => handleUpvote('vtable')}
-                          className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all ${
-                            hasUpvoted.vtable
-                              ? 'bg-[#1769AA] text-white border-[#1769AA]'
-                              : 'bg-slate-50 hover:bg-[#EAF3FB] text-[#1769AA] border-slate-200'
-                          }`}
-                        >
-                          <ThumbsUp className="w-3 h-3" />
-                          <span>{upvotes.vtable} students found this helpful</span>
-                        </button>
-                        <span className="text-[10px] text-slate-400 font-mono">LT-002</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {activeTab === 'overriding' && (
-                    <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-2.5">
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span className="font-bold text-[#0B1F3A] flex items-center gap-1.5">
-                          <div className="w-4 h-4 rounded-full bg-[#EAF3FB] text-[#1769AA] flex items-center justify-center text-[10px]">
-                            <User className="w-2.5 h-2.5" />
-                          </div>
-                          Anonymous Student
-                        </span>
-                        <span>7 min ago</span>
-                      </div>
-                      <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
-                        &ldquo;Can we override a static method in Java? Why or why not?&rdquo;
-                      </p>
-                      <div className="p-3 rounded-lg bg-[#EAF3FB]/80 border border-[#1769AA]/20 text-xs text-slate-800 space-y-1">
-                        <div className="flex items-center justify-between text-[10px] font-bold text-[#1769AA]">
-                          <span>Anonymous Peer Reply:</span>
-                          <span className="text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded font-semibold">
-                            ✓ Exam Favorite
-                          </span>
-                        </div>
-                        <p className="leading-relaxed text-[11px] text-slate-700">
-                          No! Static methods are bound at compile-time using the Class reference, not object reference. Redefining it in a subclass is <strong>method hiding</strong>, not overriding.
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between pt-1">
-                        <button
-                          type="button"
-                          onClick={() => handleUpvote('overriding')}
-                          className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all ${
-                            hasUpvoted.overriding
-                              ? 'bg-[#1769AA] text-white border-[#1769AA]'
-                              : 'bg-slate-50 hover:bg-[#EAF3FB] text-[#1769AA] border-slate-200'
-                          }`}
-                        >
-                          <ThumbsUp className="w-3 h-3" />
-                          <span>{upvotes.overriding} students upvoted</span>
-                        </button>
-                        <span className="text-[10px] text-slate-400 font-mono">Room 207</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {activeTab === 'custom' && heroLatestDoubt && (
-                    <div className="p-4 rounded-xl bg-white border border-emerald-300 shadow-sm space-y-2.5 animate-fadeIn">
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span className="font-bold text-emerald-900 flex items-center gap-1.5">
-                          <div className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px]">
-                            <User className="w-2.5 h-2.5" />
-                          </div>
-                          Anonymous Student (You)
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
-                          Live on Screen
-                        </span>
-                      </div>
-                      <p className="text-xs sm:text-sm font-black text-slate-900 leading-snug">
-                        &ldquo;{heroLatestDoubt.content}&rdquo;
-                      </p>
-                      <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
-                        <span className="text-[11px] font-medium">
-                          Synced live across classroom & today&apos;s feed.
-                        </span>
-                        <a
-                          href="#all-doubts-feed"
-                          className="text-[11px] font-bold text-[#1769AA] hover:underline"
-                        >
-                          View in Feed &darr;
-                        </a>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Interactive Test Input Bar */}
-                  <form onSubmit={handleHeroDoubtSubmit} className="pt-1">
-                    <div className="p-1.5 bg-white rounded-xl border border-slate-200 flex items-center gap-2 shadow-sm focus-within:border-[#1769AA] transition-colors">
-                      <input
-                        type="text"
-                        value={demoInput}
-                        onChange={(e) => setDemoInput(e.target.value)}
-                        placeholder="Try typing a test doubt anonymously..."
-                        className="flex-1 text-xs px-2.5 py-1.5 text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                      <textarea
+                        rows={3}
+                        value={heroDoubtText}
+                        onChange={(e) => setHeroDoubtText(e.target.value)}
+                        disabled={isSubmittingHeroDoubt}
+                        placeholder="Type your question anonymously (e.g. Why is super() necessary in constructor?)..."
+                        className="w-full p-3 text-xs bg-white rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#1769AA]/20 focus:border-[#1769AA] text-slate-900 placeholder:text-slate-400 resize-none shadow-xs"
                       />
-                      <button
-                        type="submit"
-                        disabled={isSubmittingHeroDoubt || !demoInput.trim()}
-                        className="px-3.5 py-1.5 text-xs font-bold text-white bg-[#1769AA] hover:bg-[#123B6D] rounded-lg shadow-sm transition-all flex items-center gap-1 disabled:opacity-50"
-                      >
-                        {isSubmittingHeroDoubt ? (
-                          <span>Posting...</span>
-                        ) : (
-                          <>
-                            <span>Send</span>
-                            <Send className="w-3 h-3" />
-                          </>
-                        )}
-                      </button>
                     </div>
+
+                    <button
+                      type="submit"
+                      disabled={!heroDoubtText.trim() || isSubmittingHeroDoubt}
+                      className="w-full py-2.5 px-4 text-xs font-bold rounded-xl text-white bg-gradient-to-r from-[#1769AA] via-[#123B6D] to-[#0B1F3A] hover:opacity-95 shadow-md shadow-[#1769AA]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isSubmittingHeroDoubt ? (
+                        <span>Publishing to Classroom...</span>
+                      ) : (
+                        <>
+                          <span>Post Question Live to Everyone</span>
+                          <Send className="w-3.5 h-3.5" />
+                        </>
+                      )}
+                    </button>
+
+                    {heroSuccessMsg && (
+                      <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <span>{heroSuccessMsg}</span>
+                      </div>
+                    )}
                   </form>
 
-                  {demoToast && (
-                    <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                      <span>{demoToast}</span>
+                  {/* Real-time Ticker of Latest Classroom Doubts */}
+                  <div className="pt-2 border-t border-slate-200/80 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                      <span className="flex items-center gap-1.5 text-slate-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Live Stream (Latest Questions):
+                      </span>
+                      <a href="#today-doubts-feed" className="text-[#1769AA] hover:underline">
+                        View All &darr;
+                      </a>
                     </div>
-                  )}
+
+                    <div className="space-y-2">
+                      {liveRecentDoubts.length === 0 ? (
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                          Fetching real-time questions...
+                        </div>
+                      ) : (
+                        liveRecentDoubts.map((d) => (
+                          <div
+                            key={d.id}
+                            className="p-3 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-[#1769AA]/40 transition-all space-y-1.5"
+                          >
+                            <div className="flex items-center justify-between text-[10px] text-slate-400">
+                              <span className="font-bold text-[#1769AA] flex items-center gap-1">
+                                <User className="w-2.5 h-2.5" />
+                                Anonymous Student
+                              </span>
+                              <span>{d.createdAt}</span>
+                            </div>
+                            <p className="text-xs font-bold text-slate-900 line-clamp-2 leading-snug">
+                              &ldquo;{d.content}&rdquo;
+                            </p>
+                            <div className="flex items-center justify-between text-[10px] pt-1 border-t border-slate-100 text-slate-500">
+                              <span className="font-semibold text-slate-600">
+                                {d.classInfo?.code || 'OOP'} • {d.classInfo?.day}
+                              </span>
+                              <span className="text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded">
+                                {d.replies?.length || 0} replies
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -544,8 +437,11 @@ export default function HomePage() {
       </section>
 
       {/* ==================================================
-          3. PSYCHOLOGY SECTION ("Why Students Hesitate")
+          3. CENTRAL LIVE DOUBTS STREAM OF THE DAY
           ================================================== */}
+      <section id="today-doubts-feed" className="py-10 px-4 sm:px-6 max-w-7xl mx-auto w-full scroll-mt-20">
+        <TodayDoubtsFeed showHeader={true} />
+      </section>
       <section id="psychology" className="py-20 px-4 sm:px-6 max-w-6xl mx-auto w-full scroll-mt-20">
         <div className="text-center space-y-3 mb-14">
           <span className="text-xs font-bold uppercase tracking-wider text-[#1769AA] bg-[#EAF3FB] px-3.5 py-1 rounded-full border border-[#1769AA]/20">
@@ -812,13 +708,6 @@ export default function HomePage() {
       </section>
 
       {/* ==================================================
-          6. LIVE ALL DOUBTS OF THE DAY (Student & Teacher View)
-          ================================================== */}
-      <section id="today-doubts" className="py-16 px-4 sm:px-6 max-w-7xl mx-auto w-full scroll-mt-16">
-        <TodayDoubtsFeed showHeader={true} />
-      </section>
-
-      {/* ==================================================
           6. FREQUENTLY ASKED QUESTIONS (Accordion FAQ)
           ================================================== */}
       <section className="py-20 px-4 sm:px-6 bg-[#F8FAFC] border-t border-slate-200/90 scroll-mt-16">
@@ -842,8 +731,8 @@ export default function HomePage() {
                 a: "Yes, 100% anonymous. There is no signup, no login, no email verification, and no IP/roll-number broadcast. Doubts and replies are simply posted as 'Anonymous Student'. You can ask any question without any risk of peer judgment."
               },
               {
-                q: "Why does the app show 'Class is not active' when I try to post outside lecture hours?",
-                a: "To prevent spam and keep doubts tightly relevant to what is currently being taught in class, doubts can only be submitted during scheduled lecture & lab slots. However, all existing doubts and replies remain readable 24/7 for exam revision!"
+                q: "Can I post doubts anytime, or only during scheduled lecture hours?",
+                a: "You can post doubts anytime 24/7 for any class! When a class is scheduled and live, it is pinned #1 with a 'LIVE NOW' indicator for real-time lecture interaction. Outside class hours, questions remain open for ongoing peer discussion and faculty replies."
               },
               {
                 q: "Can I ask doubts in Hinglish or only formal English?",

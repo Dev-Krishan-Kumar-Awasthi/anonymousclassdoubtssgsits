@@ -257,21 +257,138 @@ export async function fetchDoubtsForClass(classId: string): Promise<Doubt[]> {
  * Insert a new doubt into Supabase or fallback
  */
 // Single authoritative Realtime topic for the entire SGSITS Anonymous Doubts platform
-const REALTIME_CHANNEL_NAME = 'sgsits_realtime_doubts';
+const SHARED_REALTIME_TOPIC = 'sgsits_global_classroom';
 
-let globalBroadcastChannel: any = null;
+type DoubtCallback = (doubt: Doubt & { classInfo?: OOPClass }) => void;
+type ReplyCallback = (reply: Reply) => void;
 
-function getGlobalBroadcaster() {
+let sharedChannel: any = null;
+const allDoubtCallbacks = new Set<DoubtCallback>();
+const allReplyCallbacks = new Set<ReplyCallback>();
+let localBroadcastChannel: any = null;
+
+function initSharedRealtimeChannel() {
   if (typeof window === 'undefined' || !isSupabaseConfigured() || !supabase) return null;
-  if (!globalBroadcastChannel) {
-    globalBroadcastChannel = supabase.channel(REALTIME_CHANNEL_NAME, {
-      config: { broadcast: { ack: false, self: true } },
-    });
-    globalBroadcastChannel.subscribe((status: string) => {
-      console.log('[Supabase Realtime Broadcaster] Status:', status);
-    });
+  if (sharedChannel) return sharedChannel;
+
+  sharedChannel = supabase.channel(SHARED_REALTIME_TOPIC, {
+    config: {
+      broadcast: { ack: false, self: true },
+    },
+  });
+
+  // 1. WebSocket Broadcast: fast (<20ms across devices)
+  sharedChannel.on('broadcast', { event: 'NEW_DOUBT' }, (event: any) => {
+    if (event.payload) {
+      const classInfo = event.payload.classInfo || OOP_CLASSES.find((c) => c.id === event.payload.classId);
+      const doubt = { ...event.payload, classInfo };
+      allDoubtCallbacks.forEach((cb) => {
+        try {
+          cb(doubt);
+        } catch (e) {
+          console.error('[Realtime] Error in doubt callback:', e);
+        }
+      });
+    }
+  });
+
+  sharedChannel.on('broadcast', { event: 'NEW_REPLY' }, (event: any) => {
+    if (event.payload?.reply) {
+      allReplyCallbacks.forEach((cb) => {
+        try {
+          cb(event.payload.reply);
+        } catch (e) {
+          console.error('[Realtime] Error in reply callback:', e);
+        }
+      });
+    }
+  });
+
+  // 2. PostgreSQL CDC (WAL database changes)
+  sharedChannel.on(
+    'postgres_changes',
+    {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'doubts',
+    },
+    (payload: any) => {
+      const newRow = payload.new;
+      if (newRow) {
+        const classInfo = OOP_CLASSES.find((c) => c.id === newRow.class_id);
+        const doubt: Doubt & { classInfo?: OOPClass } = {
+          id: newRow.id,
+          classId: newRow.class_id,
+          author: 'Anonymous Student',
+          content: newRow.content,
+          createdAt: formatRelativeTime(newRow.created_at),
+          replies: [],
+          classInfo,
+        };
+        allDoubtCallbacks.forEach((cb) => {
+          try {
+            cb(doubt);
+          } catch (e) {}
+        });
+      }
+    }
+  );
+
+  sharedChannel.on(
+    'postgres_changes',
+    {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'replies',
+    },
+    (payload: any) => {
+      const newRow = payload.new;
+      if (newRow) {
+        const reply: Reply = {
+          id: newRow.id,
+          doubtId: newRow.doubt_id,
+          author: 'Anonymous Student',
+          content: newRow.content,
+          createdAt: formatRelativeTime(newRow.created_at),
+        };
+        allReplyCallbacks.forEach((cb) => {
+          try {
+            cb(reply);
+          } catch (e) {}
+        });
+      }
+    }
+  );
+
+  sharedChannel.subscribe((status: string) => {
+    console.log('[SGSITS Realtime Shared Channel] Status:', status);
+  });
+
+  // 3. Browser BroadcastChannel (<1ms cross-tab sync on same machine)
+  if (typeof BroadcastChannel !== 'undefined' && !localBroadcastChannel) {
+    try {
+      localBroadcastChannel = new BroadcastChannel('sgsits_ask_global');
+      localBroadcastChannel.onmessage = (event: any) => {
+        if (event.data?.type === 'NEW_DOUBT' && event.data.payload) {
+          const classInfo = event.data.payload.classInfo || OOP_CLASSES.find((c) => c.id === event.data.payload.classId);
+          const doubt = { ...event.data.payload, classInfo };
+          allDoubtCallbacks.forEach((cb) => {
+            try {
+              cb(doubt);
+            } catch {}
+          });
+        } else if (event.data?.type === 'NEW_REPLY' && event.data.payload?.reply) {
+          allReplyCallbacks.forEach((cb) => {
+            try {
+              cb(event.data.payload.reply);
+            } catch {}
+          });
+        }
+      };
+    } catch {}
   }
-  return globalBroadcastChannel;
+
+  return sharedChannel;
 }
 
 /**
@@ -321,11 +438,11 @@ export async function createDoubt(classId: string, content: string): Promise<Dou
     saveLocalDoubts(classId, [createdDoubt, ...existing]);
   }
 
-  // Layer 1: Supabase Realtime WebSocket Broadcast (<30ms to all remote devices)
+  // Layer 1: Supabase Realtime WebSocket Broadcast (<20ms to all remote devices)
   try {
-    const broadcaster = getGlobalBroadcaster();
-    if (broadcaster) {
-      broadcaster.send({
+    const channel = initSharedRealtimeChannel();
+    if (channel) {
+      channel.send({
         type: 'broadcast',
         event: 'NEW_DOUBT',
         payload: createdDoubt,
@@ -408,9 +525,9 @@ export async function createReply(
 
   // Layer 1: Supabase Realtime WebSocket Broadcast
   try {
-    const broadcaster = getGlobalBroadcaster();
-    if (broadcaster) {
-      broadcaster.send({
+    const channel = initSharedRealtimeChannel();
+    if (channel) {
+      channel.send({
         type: 'broadcast',
         event: 'NEW_REPLY',
         payload: { doubtId, classId, reply: createdReply },
@@ -440,99 +557,25 @@ export function subscribeToClass(
   onDoubtInsert: (doubt: Doubt) => void,
   onReplyInsert: (reply: Reply) => void
 ): () => void {
-  const client = supabase;
-  let subChannel: any = null;
+  initSharedRealtimeChannel();
 
-  if (isSupabaseConfigured() && client) {
-    const uniqueSubId = `class_sub_${classId}_${Math.random().toString(36).substring(2, 7)}`;
-    subChannel = client
-      .channel(uniqueSubId, {
-        config: { broadcast: { ack: false, self: true } },
-      })
-      // 1. WebSocket Broadcast: fast (<30ms)
-      .on('broadcast', { event: 'NEW_DOUBT' }, (event: any) => {
-        if (event.payload && event.payload.classId === classId) {
-          onDoubtInsert(event.payload);
-        }
-      })
-      .on('broadcast', { event: 'NEW_REPLY' }, (event: any) => {
-        if (event.payload?.classId === classId && event.payload?.reply) {
-          onReplyInsert(event.payload.reply);
-        }
-      })
-      // 2. PostgreSQL CDC (WAL database changes)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'doubts',
-        },
-        (payload) => {
-          const newRow = payload.new;
-          if (newRow && newRow.class_id === classId) {
-            const doubt: Doubt = {
-              id: newRow.id,
-              classId: newRow.class_id,
-              author: 'Anonymous Student',
-              content: newRow.content,
-              createdAt: formatRelativeTime(newRow.created_at),
-              replies: [],
-            };
-            onDoubtInsert(doubt);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'replies',
-        },
-        (payload) => {
-          const newRow = payload.new;
-          if (newRow) {
-            const reply: Reply = {
-              id: newRow.id,
-              doubtId: newRow.doubt_id,
-              author: 'Anonymous Student',
-              content: newRow.content,
-              createdAt: formatRelativeTime(newRow.created_at),
-            };
-            onReplyInsert(reply);
-          }
-        }
-      )
-      .subscribe((status: string) => {
-        console.log(`[Class Realtime ${classId}] Subscription status:`, status);
-      });
-  }
+  const doubtHandler: DoubtCallback = (doubt) => {
+    const dClassId = doubt.classId || (doubt as any).class_id;
+    if (dClassId === classId) {
+      onDoubtInsert(doubt);
+    }
+  };
 
-  // 3. Multi-tab cross-tab broadcast (same computer/browser)
-  let bc: any = null;
-  if (typeof BroadcastChannel !== 'undefined') {
-    try {
-      bc = new BroadcastChannel('sgsits_ask_global');
-      bc.onmessage = (event: any) => {
-        if (event.data?.type === 'NEW_DOUBT' && event.data.payload?.classId === classId) {
-          onDoubtInsert(event.data.payload);
-        } else if (event.data?.type === 'NEW_REPLY' && event.data.payload?.reply) {
-          if (event.data.payload.classId === classId) {
-            onReplyInsert(event.data.payload.reply);
-          }
-        }
-      };
-    } catch {}
-  }
+  const replyHandler: ReplyCallback = (reply) => {
+    onReplyInsert(reply);
+  };
+
+  allDoubtCallbacks.add(doubtHandler);
+  allReplyCallbacks.add(replyHandler);
 
   return () => {
-    if (client && subChannel) {
-      client.removeChannel(subChannel);
-    }
-    if (bc) {
-      bc.close();
-    }
+    allDoubtCallbacks.delete(doubtHandler);
+    allReplyCallbacks.delete(replyHandler);
   };
 }
 
@@ -543,100 +586,13 @@ export function subscribeToAllDoubts(
   onDoubtInsert: (doubt: Doubt & { classInfo?: OOPClass }) => void,
   onReplyInsert: (reply: Reply) => void
 ): () => void {
-  const client = supabase;
-  let allChannel: any = null;
+  initSharedRealtimeChannel();
 
-  if (isSupabaseConfigured() && client) {
-    const uniqueSubId = `all_doubts_sub_${Math.random().toString(36).substring(2, 7)}`;
-    allChannel = client
-      .channel(uniqueSubId, {
-        config: { broadcast: { ack: false, self: true } },
-      })
-      // 1. WebSocket Broadcast: fast (<30ms)
-      .on('broadcast', { event: 'NEW_DOUBT' }, (event: any) => {
-        if (event.payload) {
-          const classInfo = OOP_CLASSES.find((c) => c.id === event.payload.classId);
-          onDoubtInsert({ ...event.payload, classInfo });
-        }
-      })
-      .on('broadcast', { event: 'NEW_REPLY' }, (event: any) => {
-        if (event.payload?.reply) {
-          onReplyInsert(event.payload.reply);
-        }
-      })
-      // 2. PostgreSQL CDC WAL
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'doubts',
-        },
-        (payload) => {
-          const newRow = payload.new;
-          if (newRow) {
-            const classInfo = OOP_CLASSES.find((c) => c.id === newRow.class_id);
-            const doubt: Doubt & { classInfo?: OOPClass } = {
-              id: newRow.id,
-              classId: newRow.class_id,
-              author: 'Anonymous Student',
-              content: newRow.content,
-              createdAt: formatRelativeTime(newRow.created_at),
-              replies: [],
-              classInfo,
-            };
-            onDoubtInsert(doubt);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'replies',
-        },
-        (payload) => {
-          const newRow = payload.new;
-          if (newRow) {
-            const reply: Reply = {
-              id: newRow.id,
-              doubtId: newRow.doubt_id,
-              author: 'Anonymous Student',
-              content: newRow.content,
-              createdAt: formatRelativeTime(newRow.created_at),
-            };
-            onReplyInsert(reply);
-          }
-        }
-      )
-      .subscribe((status: string) => {
-        console.log('[All Doubts Realtime] Subscription status:', status);
-      });
-  }
-
-  // 3. Browser BroadcastChannel (<1ms cross-tab sync)
-  let bc: any = null;
-  if (typeof BroadcastChannel !== 'undefined') {
-    try {
-      bc = new BroadcastChannel('sgsits_ask_global');
-      bc.onmessage = (event: any) => {
-        if (event.data?.type === 'NEW_DOUBT' && event.data.payload) {
-          const classInfo = OOP_CLASSES.find((c) => c.id === event.data.payload.classId);
-          onDoubtInsert({ ...event.data.payload, classInfo });
-        } else if (event.data?.type === 'NEW_REPLY' && event.data.payload?.reply) {
-          onReplyInsert(event.data.payload.reply);
-        }
-      };
-    } catch {}
-  }
+  allDoubtCallbacks.add(onDoubtInsert);
+  allReplyCallbacks.add(onReplyInsert);
 
   return () => {
-    if (client && allChannel) {
-      client.removeChannel(allChannel);
-    }
-    if (bc) {
-      bc.close();
-    }
+    allDoubtCallbacks.delete(onDoubtInsert);
+    allReplyCallbacks.delete(onReplyInsert);
   };
 }

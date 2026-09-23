@@ -113,9 +113,9 @@ export function ClassCard({ cls, isActive = false, statusText, isPinned = false,
               <span>Class is Active (Live Now)</span>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
-              <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-              <span>{statusText || 'Class is Not Active'}</span>
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg">
+              <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+              <span>{statusText || 'Open for Doubts'}</span>
             </div>
           )}
 
@@ -137,7 +137,7 @@ export function ClassCard({ cls, isActive = false, statusText, isPinned = false,
               : 'bg-[#F6F8FB] group-hover:bg-[#1769AA] text-slate-700 group-hover:text-white'
           }`}
         >
-          <span>{isActive ? 'Enter Active Class' : 'Open Class'}</span>
+          <span>{isActive ? 'Enter Active Class' : 'View Doubts & Ask'}</span>
           <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </div>

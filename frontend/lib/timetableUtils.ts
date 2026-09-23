@@ -175,7 +175,7 @@ export function isClassActive(
 
   return {
     isActive: false,
-    statusText: 'Class is Not Active',
+    statusText: 'Open for Doubts',
     slot,
   };
 }

@@ -297,6 +297,30 @@ export default function ClassDetailPage() {
         </div>
       </div>
 
+      {/* Quick Class Switcher Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <span className="text-xs font-bold text-slate-500 flex-shrink-0 flex items-center gap-1">
+          <BookOpen className="w-3.5 h-3.5 text-[#1769AA]" />
+          <span>Switch Classroom:</span>
+        </span>
+        {OOP_CLASSES.map((cls) => {
+          const isSelected = cls.id === classId;
+          return (
+            <Link
+              key={cls.id}
+              href={`/classes/${cls.id}`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex-shrink-0 transition-all border ${
+                isSelected
+                  ? 'bg-[#1769AA] text-white border-[#1769AA] shadow-sm'
+                  : 'bg-white text-slate-700 border-slate-200 hover:border-[#1769AA]/40 hover:bg-slate-50'
+              }`}
+            >
+              <span>{cls.day} {cls.time.split('–')[0].trim()} ({cls.code})</span>
+            </Link>
+          );
+        })}
+      </div>
+
       {/* Class Header Card with Active / Inactive Badge */}
       <div
         className={`bg-white rounded-2xl border p-5 sm:p-6 space-y-4 transition-all ${
@@ -331,9 +355,9 @@ export default function ClassDetailPage() {
               <span>LIVE NOW • CLASS IS ACTIVE</span>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-50 px-3 py-1 rounded-full border border-amber-300">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-              <span>CLASS IS NOT ACTIVE (OFFLINE)</span>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-800 bg-sky-50 px-3 py-1 rounded-full border border-sky-200">
+              <Clock className="w-3.5 h-3.5 text-sky-600" />
+              <span>SCHEDULED: {currentClass.day.toUpperCase()} • QUESTIONS OPEN</span>
             </div>
           )}
         </div>
