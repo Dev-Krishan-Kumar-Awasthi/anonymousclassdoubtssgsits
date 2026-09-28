@@ -201,7 +201,7 @@ export function TodayDoubtsFeed({ initialClassId, showHeader = true }: TodayDoub
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-black text-[#0B1F3A] tracking-tight">
-                All Doubts of the Day (आज के सारे डाउट्स)
+                All Doubts of the Day
               </h2>
               <p className="text-xs text-[#667085]">
                 Real-time stream of all questions posted by students across SGSITS IT OOP lectures and labs.
